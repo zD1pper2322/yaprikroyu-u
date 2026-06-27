@@ -1,0 +1,3079 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Я прикрою! — контроль сроков годности</title>
+
+<!-- PWA: установка на главный экран -->
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#1A2332">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Я прикрою!">
+<link rel="apple-touch-icon" href="data:image/png;base64,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">
+<link rel="icon" type="image/png" href="data:image/png;base64,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">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+  :root{
+    --bg:#1A2332;
+    --bg-deep:#131B27;
+    --panel:#222E40;
+    --panel-light:#2A3850;
+    --line:#39496640;
+    --paper:#F2EFE9;
+    --paper-dim:#C9C4B6;
+    --amber:#E8A23D;
+    --amber-dim:#E8A23D26;
+    --red:#D64545;
+    --red-dim:#D6454522;
+    --green:#4F9D69;
+    --green-dim:#4F9D6922;
+    --text:#F2EFE9;
+    --text-dim:#9BA6BB;
+    --shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(circle at 10% 0%, #24314740 0%, transparent 50%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ---------- HEADER ---------- */
+  header{
+    padding:22px 18px 14px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg, #1E2A3D 0%, transparent 100%);
+  }
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+  .brand-mark{
+    width:42px;height:42px;border-radius:10px;
+    background:var(--amber);
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Archivo Black',sans-serif;
+    color:var(--bg-deep);
+    font-size:20px;
+    transform:rotate(-4deg);
+    box-shadow:var(--shadow);
+    flex-shrink:0;
+  }
+  .brand h1{
+    font-family:'Archivo Black',sans-serif;
+    font-size:19px;
+    letter-spacing:0.3px;
+    margin:0;
+    line-height:1.1;
+  }
+  .brand p{
+    margin:2px 0 0;
+    font-size:11px;
+    color:var(--text-dim);
+    text-transform:uppercase;
+    letter-spacing:1px;
+  }
+  .header-actions{display:flex; gap:8px; align-items:center;}
+
+  .cloud-dot{
+    width:10px; height:10px;
+    border-radius:50%;
+    flex-shrink:0;
+    margin-right:2px;
+  }
+  .cloud-dot.none{ background:transparent; }
+  .cloud-dot.ok{ background:var(--green); box-shadow:0 0 6px var(--green); }
+  .cloud-dot.error{ background:var(--red); }
+  .cloud-dot.offline{ background:var(--amber); animation:pulse 1.6s infinite; }
+
+  /* ---------- TOAST ---------- */
+  .toast{
+    position:fixed;
+    bottom:24px;
+    left:50%;
+    transform:translateX(-50%) translateY(20px);
+    background:var(--bg-deep);
+    color:var(--paper);
+    padding:13px 20px;
+    border-radius:12px;
+    font-size:13px;
+    font-weight:600;
+    box-shadow:var(--shadow);
+    z-index:300;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .25s, transform .25s;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    max-width:90vw;
+    text-align:center;
+  }
+  .toast.show{
+    opacity:1;
+    transform:translateX(-50%) translateY(0);
+  }
+  .toast.success{ background:#1f3d2b; }
+  .toast.error{ background:#3d1f1f; }
+  .toast.info{ background:var(--bg-deep); }
+  .icon-btn{
+    width:40px;height:40px;border-radius:10px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    color:var(--text);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;
+    font-size:18px;
+    transition:.15s;
+  }
+  .icon-btn:hover{background:var(--panel-light);}
+  .icon-btn:active{transform:scale(.93);}
+
+  /* ---------- ALERT BANNER ---------- */
+  .alert-bar{
+    margin:14px 16px 0;
+    padding:12px 14px;
+    border-radius:10px;
+    background:var(--red-dim);
+    border:1px solid #D6454555;
+    color:#FFD9D9;
+    font-size:13px;
+    display:none;
+    align-items:center;
+    gap:10px;
+    font-weight:600;
+  }
+  .alert-bar.show{display:flex;}
+  .alert-bar .dot{
+    width:8px;height:8px;border-radius:50%;
+    background:var(--red);
+    flex-shrink:0;
+    animation:pulse 1.6s infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+  /* ---------- DEPARTMENT TABS ---------- */
+  .tabs-wrap{
+    padding:16px 16px 0;
+    overflow-x:auto;
+    white-space:nowrap;
+    scrollbar-width:none;
+  }
+  .tabs-wrap::-webkit-scrollbar{display:none;}
+  .tabs{
+    display:inline-flex;
+    gap:6px;
+    padding-bottom:6px;
+  }
+  .tab{
+    font-family:'Inter',sans-serif;
+    font-weight:700;
+    font-size:13px;
+    padding:10px 16px 12px;
+    border-radius:10px 10px 0 0;
+    background:var(--panel);
+    color:var(--text-dim);
+    cursor:pointer;
+    border:1px solid var(--line);
+    border-bottom:none;
+    position:relative;
+    transition:.15s;
+    flex-shrink:0;
+  }
+  .tab .badge{
+    display:inline-block;
+    margin-left:6px;
+    padding:1px 6px;
+    border-radius:20px;
+    font-size:10px;
+    background:var(--red);
+    color:#fff;
+    font-family:'JetBrains Mono',monospace;
+  }
+  .tab .badge.zero{display:none;}
+  .tab.locked::after{
+    content:"🔒";
+    font-size:10px;
+    margin-left:5px;
+    opacity:.6;
+  }
+  .tab.active{
+    background:var(--paper);
+    color:var(--bg-deep);
+  }
+  .tab.active .badge{background:var(--red); color:#fff;}
+  .tab:hover:not(.active){background:var(--panel-light); color:var(--text);}
+
+  /* ---------- MAIN PANEL ---------- */
+  main{
+    background:var(--paper);
+    min-height:60vh;
+    border-radius:0;
+    padding:0;
+  }
+  .panel-inner{
+    padding:18px 16px 100px;
+    max-width:900px;
+    margin:0 auto;
+  }
+
+  /* ---------- TOOLBAR ---------- */
+  .toolbar{
+    display:flex;
+    gap:8px;
+    margin-bottom:16px;
+    flex-wrap:wrap;
+  }
+  .btn{
+    font-family:'Inter',sans-serif;
+    font-weight:700;
+    font-size:13px;
+    padding:11px 16px;
+    border-radius:10px;
+    border:none;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    gap:7px;
+    transition:.15s;
+  }
+  .btn:active{transform:scale(.96);}
+  .btn-primary{background:var(--bg-deep); color:var(--paper);}
+  .btn-primary:hover{background:#0f1620;}
+  .btn-scan{background:var(--amber); color:var(--bg-deep);}
+  .btn-scan:hover{background:#d6912f;}
+  .btn-ghost{background:#00000010; color:var(--bg-deep);}
+  .btn-ghost:hover{background:#00000018;}
+  .search-input{
+    flex:1;
+    min-width:140px;
+    padding:11px 14px;
+    border-radius:10px;
+    border:1px solid #00000018;
+    background:#fff;
+    font-family:'Inter',sans-serif;
+    font-size:13px;
+    color:var(--bg-deep);
+    outline:none;
+  }
+  .search-input:focus{border-color:var(--amber);}
+
+  .sort-row{
+    display:flex;
+    gap:6px;
+    margin-bottom:18px;
+    overflow-x:auto;
+  }
+  .chip{
+    font-size:12px;
+    font-weight:600;
+    padding:6px 12px;
+    border-radius:20px;
+    background:#00000010;
+    color:#4a4a4a;
+    cursor:pointer;
+    white-space:nowrap;
+    border:1px solid transparent;
+  }
+  .chip.active{background:var(--bg-deep); color:var(--paper);}
+
+  /* ---------- EMPTY STATE ---------- */
+  .empty-state{
+    text-align:center;
+    padding:60px 20px;
+    color:#00000055;
+  }
+  .empty-state .icon{font-size:42px; margin-bottom:10px; display:block;}
+  .empty-state h3{font-family:'Archivo Black',sans-serif; font-size:16px; color:#00000088; margin:0 0 6px;}
+  .empty-state p{font-size:13px; margin:0; max-width:280px; margin:0 auto;}
+
+  /* ---------- PRODUCT GRID ---------- */
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(230px,1fr));
+    gap:12px;
+  }
+  .card{
+    background:#fff;
+    border-radius:12px;
+    padding:14px 14px 12px;
+    position:relative;
+    box-shadow:0 1px 0 #00000008, 0 4px 14px #00000010;
+    border-left:6px solid var(--green);
+    overflow:hidden;
+  }
+  .card.warn{border-left-color:var(--amber);}
+  .card.danger{border-left-color:var(--red);}
+  .card.expired{border-left-color:#7a1f1f; background:#fff5f5;}
+
+  .card::before{
+    /* perforation notches like a price tag */
+    content:"";
+    position:absolute;
+    top:50%; left:-6px;
+    width:12px;height:12px;
+    background:var(--paper);
+    border-radius:50%;
+    transform:translateY(-50%);
+  }
+
+  .card-top{display:flex; justify-content:space-between; align-items:flex-start; gap:8px;}
+  .card-photo{
+    width:100%;
+    height:120px;
+    object-fit:cover;
+    border-radius:8px;
+    margin:-2px 0 10px;
+    display:block;
+  }
+  .card-name{
+    font-weight:700;
+    font-size:14px;
+    color:var(--bg-deep);
+    line-height:1.25;
+    margin:0 0 2px;
+  }
+  .card-meta{
+    font-size:11px;
+    color:#777;
+    font-family:'JetBrains Mono',monospace;
+  }
+  .stamp{
+    font-family:'JetBrains Mono',monospace;
+    font-weight:700;
+    font-size:11px;
+    padding:4px 8px;
+    border-radius:7px;
+    white-space:nowrap;
+    flex-shrink:0;
+    transform:rotate(2deg);
+    border:1.5px dashed currentColor;
+  }
+  .stamp.ok{color:var(--green); }
+  .stamp.warn{color:#a8731f;}
+  .stamp.danger{color:var(--red);}
+  .stamp.expired{color:#7a1f1f; background:#7a1f1f12;}
+
+  .card-date{
+    margin-top:10px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:13px;
+    color:var(--bg-deep);
+    font-weight:600;
+  }
+  .card-date span{color:#999; font-weight:400; font-family:'Inter',sans-serif; font-size:11px;}
+
+  .card-actions{
+    display:flex;
+    gap:6px;
+    margin-top:12px;
+  }
+  .card-actions button{
+    flex:1;
+    font-size:11px;
+    font-weight:700;
+    padding:8px 6px;
+    border-radius:7px;
+    border:none;
+    cursor:pointer;
+    font-family:'Inter',sans-serif;
+  }
+  .act-promo{background:var(--amber-dim); color:#9c6a1d;}
+  .act-promo:hover{background:var(--amber); color:#fff;}
+  .act-done{background:#00000008; color:#666;}
+  .act-done:hover{background:#00000014;}
+  .act-del{background:transparent; color:#bbb; flex:0 0 32px;}
+  .act-del:hover{color:var(--red);}
+
+  .promo-flag{
+    margin-top:8px;
+    font-size:11px;
+    font-weight:700;
+    color:#9c6a1d;
+    background:var(--amber-dim);
+    padding:5px 8px;
+    border-radius:6px;
+    display:flex;
+    align-items:center;
+    gap:5px;
+  }
+
+  /* ---------- FAB ---------- */
+  .fab{
+    position:fixed;
+    bottom:22px; right:18px;
+    width:58px;height:58px;
+    border-radius:50%;
+    background:var(--amber);
+    color:var(--bg-deep);
+    border:none;
+    font-size:26px;
+    box-shadow:0 8px 20px #00000040;
+    cursor:pointer;
+    z-index:40;
+    display:flex;align-items:center;justify-content:center;
+    transition:.15s;
+  }
+  .fab:active{transform:scale(.92);}
+
+  /* ---------- MODAL ---------- */
+  .modal-overlay{
+    position:fixed; inset:0;
+    background:#0c121cd9;
+    display:none;
+    align-items:center;justify-content:center;
+    z-index:100;
+    padding:16px;
+  }
+  .modal-overlay.show{display:flex;}
+  .modal{
+    background:var(--paper);
+    border-radius:16px;
+    width:100%;
+    max-width:420px;
+    max-height:92vh;
+    overflow-y:auto;
+    padding:22px;
+    position:relative;
+    box-shadow:var(--shadow);
+  }
+  .modal h2{
+    font-family:'Archivo Black',sans-serif;
+    font-size:17px;
+    color:var(--bg-deep);
+    margin:0 0 4px;
+  }
+  .modal .sub{font-size:12px; color:#888; margin:0 0 18px;}
+  .modal-close{
+    position:absolute; top:16px; right:16px;
+    width:32px;height:32px;border-radius:50%;
+    background:#00000008; border:none;
+    font-size:16px; cursor:pointer; color:#555;
+  }
+  .field{margin-bottom:14px;}
+  .field label{
+    display:block;
+    font-size:12px;
+    font-weight:700;
+    color:#555;
+    margin-bottom:6px;
+    text-transform:uppercase;
+    letter-spacing:.4px;
+  }
+  .field input, .field select{
+    width:100%;
+    padding:12px 13px;
+    border-radius:9px;
+    border:1.5px solid #00000018;
+    font-family:'Inter',sans-serif;
+    font-size:14px;
+    color:var(--bg-deep);
+    background:#fff;
+    outline:none;
+  }
+  .field input:focus, .field select:focus{border-color:var(--amber);}
+  .field-row{display:flex; gap:10px;}
+
+  .date-input-row{
+    display:flex;
+    gap:8px;
+    align-items:stretch;
+  }
+  .date-text-input{
+    flex:1;
+    padding:12px 13px;
+    border-radius:9px;
+    border:1.5px solid #00000018;
+    font-family:'JetBrains Mono',monospace;
+    font-size:14px;
+    letter-spacing:0.5px;
+    color:var(--bg-deep);
+    background:#fff;
+    outline:none;
+  }
+  .date-text-input:focus{border-color:var(--amber);}
+  .date-text-input.invalid{border-color:var(--red); background:#fff5f5;}
+  .date-native-input{
+    flex:0 0 46px;
+    width:46px;
+    padding:0;
+    border-radius:9px;
+    border:1.5px solid #00000018;
+    background:#fff;
+    color:transparent;
+    cursor:pointer;
+    position:relative;
+  }
+  /* Стилизуем нативный date-инпут как просто "кнопку календаря" —
+     видимым остаётся только иконка-календарик браузера */
+  .date-native-input::-webkit-datetime-edit{ display:none; }
+  .date-native-input::-webkit-inner-spin-button{ display:none; }
+  .date-native-input::-webkit-calendar-picker-indicator{
+    opacity:1;
+    cursor:pointer;
+    width:100%;
+    height:100%;
+    margin:0;
+    position:absolute;
+    inset:0;
+    background-size:20px;
+  }
+  .date-hint{
+    font-size:11px;
+    color:#999;
+    margin:5px 0 0;
+  }
+
+  .photo-picker{ width:100%; }
+  .photo-preview-box{
+    width:100%;
+    height:140px;
+    border-radius:10px;
+    border:1.5px dashed #00000028;
+    background:#00000006;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    position:relative;
+    overflow:hidden;
+  }
+  .photo-preview-box:active{ background:#00000010; }
+  .photo-placeholder{
+    font-size:13px;
+    color:#999;
+    font-weight:600;
+  }
+  .photo-preview-box img{
+    width:100%; height:100%;
+    object-fit:cover;
+  }
+  .photo-remove-btn{
+    position:absolute;
+    top:8px; right:8px;
+    width:28px; height:28px;
+    border-radius:50%;
+    background:#000000aa;
+    color:#fff;
+    border:none;
+    font-size:14px;
+    cursor:pointer;
+    z-index:2;
+  }
+  .field-row .field{flex:1;}
+  .modal-submit{
+    width:100%;
+    margin-top:6px;
+    padding:14px;
+    border-radius:10px;
+    border:none;
+    background:var(--bg-deep);
+    color:var(--paper);
+    font-weight:700;
+    font-size:14px;
+    cursor:pointer;
+  }
+  .modal-submit:active{transform:scale(.98);}
+
+  /* ---------- HISTORY LIST ---------- */
+  .history-list{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    max-height:60vh;
+    overflow-y:auto;
+  }
+  .history-item{
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    padding:10px 12px;
+    border-radius:9px;
+    background:#00000006;
+    font-size:12.5px;
+  }
+  .history-icon{
+    width:26px;height:26px;
+    border-radius:50%;
+    flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    font-size:13px;
+  }
+  .history-icon.add{background:var(--green-dim); }
+  .history-icon.edit{background:var(--amber-dim); }
+  .history-icon.delete{background:var(--red-dim); }
+  .history-icon.promo_on{background:var(--amber-dim); }
+  .history-icon.promo_off{background:#00000010; }
+  .history-icon.scan{background:#3a7bd510; }
+  .history-text{flex:1; line-height:1.4;}
+  .history-text b{color:var(--bg-deep);}
+  .history-time{
+    font-size:10.5px;
+    color:#999;
+    font-family:'JetBrains Mono',monospace;
+    white-space:nowrap;
+    flex-shrink:0;
+  }
+  .history-empty{
+    text-align:center;
+    color:#999;
+    font-size:13px;
+    padding:30px 10px;
+  }
+
+  /* ---------- STATS ---------- */
+  .stats-period-row{
+    display:flex;
+    gap:6px;
+    margin-bottom:16px;
+  }
+  .stats-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-bottom:18px;
+  }
+  .stats-card{
+    background:#00000006;
+    border-radius:10px;
+    padding:14px;
+    text-align:center;
+  }
+  .stats-card .num{
+    font-family:'JetBrains Mono',monospace;
+    font-weight:700;
+    font-size:24px;
+    color:var(--bg-deep);
+    display:block;
+  }
+  .stats-card .label{
+    font-size:11px;
+    color:#888;
+    margin-top:2px;
+  }
+  .stats-leaders{
+    border-top:1px solid #00000010;
+    padding-top:14px;
+  }
+  .stats-leaders h4{
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:0.4px;
+    color:#888;
+    margin:0 0 10px;
+  }
+  .stats-leader-row{
+    display:flex;
+    justify-content:space-between;
+    padding:7px 0;
+    font-size:13px;
+    border-bottom:1px solid #00000008;
+  }
+  .stats-leader-row .count{
+    font-family:'JetBrains Mono',monospace;
+    font-weight:700;
+    color:var(--bg-deep);
+  }
+
+  /* ---------- ADMIN PANEL ---------- */
+  .admin-user-list{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    max-height:55vh;
+    overflow-y:auto;
+  }
+  .admin-user-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:11px 12px;
+    border-radius:10px;
+    background:#00000006;
+  }
+  .admin-user-avatar{
+    width:36px;height:36px;
+    border-radius:50%;
+    background:var(--amber);
+    color:var(--bg-deep);
+    font-weight:700;
+    font-size:14px;
+    display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;
+  }
+  .admin-user-info{ flex:1; min-width:0; }
+  .admin-user-name{ font-weight:700; font-size:13.5px; color:var(--bg-deep); }
+  .admin-user-meta{ font-size:11.5px; color:#888; }
+  .admin-user-depts{
+    display:flex;
+    flex-wrap:wrap;
+    gap:4px;
+    margin-top:4px;
+  }
+  .admin-user-dept-tag{
+    font-size:10px;
+    font-weight:600;
+    padding:2px 7px;
+    border-radius:20px;
+    background:var(--amber-dim);
+    color:#9c6a1d;
+  }
+  .admin-user-actions{ display:flex; gap:6px; flex-shrink:0; }
+  .admin-user-actions button{
+    width:32px;height:32px;
+    border-radius:8px;
+    border:none;
+    background:#00000010;
+    cursor:pointer;
+    font-size:14px;
+  }
+  .admin-user-actions button.danger{ background:var(--red-dim); }
+  .admin-empty{
+    text-align:center;
+    color:#999;
+    font-size:13px;
+    padding:30px 10px;
+  }
+
+  .admin-backup-section{
+    margin-top:18px;
+    padding-top:18px;
+    border-top:1.5px solid #00000012;
+  }
+  .admin-backup-section h4{
+    font-size:13px;
+    text-transform:uppercase;
+    letter-spacing:0.4px;
+    color:#888;
+    margin:0 0 6px;
+  }
+  .admin-backup-hint{
+    font-size:12px;
+    color:#999;
+    margin:0 0 12px;
+    line-height:1.5;
+  }
+  .admin-backup-buttons{
+    display:flex;
+    gap:8px;
+  }
+  .admin-backup-buttons .modal-submit{
+    flex:1;
+    margin-top:0;
+    font-size:13px;
+    padding:12px 10px;
+  }
+  .admin-backup-meta{
+    font-size:11px;
+    color:#aaa;
+    margin:10px 0 0;
+    text-align:center;
+  }
+
+  .dept-checkbox-list{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .dept-checkbox-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:11px 13px;
+    border-radius:9px;
+    border:1.5px solid #00000018;
+    cursor:pointer;
+  }
+  .dept-checkbox-row.checked{
+    border-color:var(--amber);
+    background:var(--amber-dim);
+  }
+  .dept-checkbox-row input{ width:18px; height:18px; flex-shrink:0; accent-color:var(--amber); }
+  .dept-checkbox-row span{ font-size:13.5px; font-weight:600; color:var(--bg-deep); }
+
+  /* ---------- DIAGNOSTICS ---------- */
+  .diag-box{
+    background:#00000006;
+    border-radius:10px;
+    padding:12px 14px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    line-height:1.7;
+    color:var(--bg-deep);
+  }
+  .diag-box .diag-row{ display:flex; justify-content:space-between; gap:10px; }
+  .diag-box .diag-label{ color:#888; }
+  .diag-ok{ color:var(--green); font-weight:700; }
+  .diag-bad{ color:var(--red); font-weight:700; }
+  .diag-log{
+    margin-top:14px;
+    max-height:240px;
+    overflow-y:auto;
+    background:#0d1420;
+    border-radius:10px;
+    padding:10px 12px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:#9fd99f;
+    white-space:pre-wrap;
+    word-break:break-word;
+  }
+  .diag-log .err{ color:#ff8a8a; }
+
+  /* ---------- SCANNER MODAL ---------- */
+  .scan-area{
+    border-radius:12px;
+    overflow:hidden;
+    position:relative;
+    background:#000;
+    aspect-ratio:1/1;
+    margin-bottom:14px;
+  }
+  .scan-area video{width:100%;height:100%;object-fit:cover;}
+  .scan-frame{
+    position:absolute; inset:14%;
+    border:2.5px solid var(--amber);
+    border-radius:14px;
+    box-shadow:0 0 0 2000px rgba(0,0,0,0.35);
+  }
+  .scan-frame::before, .scan-frame::after{
+    content:"";
+    position:absolute;
+    width:22px;height:22px;
+    border:3px solid #fff;
+  }
+  .scan-line{
+    position:absolute; left:14%; right:14%; top:14%;
+    height:2px;
+    background:var(--amber);
+    box-shadow:0 0 8px var(--amber);
+    animation:scanmove 1.8s ease-in-out infinite;
+  }
+  @keyframes scanmove{0%{top:14%}50%{top:84%}100%{top:14%}}
+  .scan-status{
+    text-align:center;
+    font-size:12.5px;
+    color:#666;
+    margin-bottom:14px;
+    min-height:18px;
+  }
+  .scan-result{
+    background:var(--green-dim);
+    border:1px solid #4F9D6955;
+    border-radius:10px;
+    padding:10px 12px;
+    font-size:12px;
+    margin-bottom:14px;
+    color:#2c6b41;
+    display:none;
+  }
+  .scan-result.show{display:block;}
+  .scan-result b{font-family:'JetBrains Mono',monospace; word-break:break-all;}
+  .scan-fallback{
+    text-align:center;
+    font-size:12px;
+    color:#999;
+    margin-top:4px;
+  }
+  .scan-fallback a{color:#9c6a1d; font-weight:700; cursor:pointer;}
+
+  /* ---------- LOCK SCREEN ---------- */
+  .lock-overlay{
+    position:fixed; inset:0;
+    background:var(--bg);
+    z-index:200;
+    display:flex; align-items:center; justify-content:center;
+    padding:20px;
+  }
+  .lock-box{
+    text-align:center;
+    max-width:300px;
+    width:100%;
+  }
+  .lock-box .dept-icon{
+    width:64px;height:64px;
+    border-radius:16px;
+    background:var(--amber);
+    color:var(--bg-deep);
+    font-family:'Archivo Black',sans-serif;
+    font-size:26px;
+    display:flex;align-items:center;justify-content:center;
+    margin:0 auto 16px;
+    transform:rotate(-3deg);
+  }
+  .lock-box h2{font-family:'Archivo Black',sans-serif; font-size:18px; margin:0 0 6px;}
+  .lock-box p{color:var(--text-dim); font-size:12.5px; margin:0 0 20px;}
+
+  .login-field{ margin-bottom:12px; text-align:left; }
+  .login-field input{
+    width:100%;
+    padding:13px 14px;
+    border-radius:10px;
+    border:1.5px solid var(--line);
+    background:var(--panel);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    font-size:15px;
+    outline:none;
+  }
+  .login-field input::placeholder{ color:var(--text-dim); }
+  .login-field input:focus{ border-color:var(--amber); }
+
+  .pin-dots{
+    display:flex; justify-content:center; gap:10px; margin-bottom:20px;
+  }
+  .pin-dot{
+    width:14px;height:14px;border-radius:50%;
+    border:2px solid var(--text-dim);
+  }
+  .pin-dot.filled{background:var(--amber); border-color:var(--amber);}
+  .pin-pad{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:10px;
+  }
+  .pin-key{
+    aspect-ratio:1;
+    border-radius:14px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    color:var(--text);
+    font-size:20px;
+    font-weight:600;
+    cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .pin-key:active{background:var(--panel-light);}
+  .pin-key.fn{background:transparent; border:none; color:var(--text-dim); font-size:14px;}
+  .lock-error{
+    color:var(--red);
+    font-size:12px;
+    font-weight:700;
+    min-height:16px;
+    margin-bottom:8px;
+  }
+
+  @media (max-width:480px){
+    .grid{grid-template-columns:1fr;}
+    .brand h1{font-size:15px;}
+    .brand p{display:none;}
+    .panel-inner{padding:16px 12px 100px;}
+    .header-actions{gap:5px;}
+    .icon-btn{width:34px; height:34px; font-size:15px;}
+    header{padding:16px 12px 12px;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN SCREEN ============ -->
+<div class="lock-overlay" id="lockOverlay">
+  <div class="lock-box">
+    <div class="dept-icon" id="lockIcon">Я</div>
+    <h2>Вход в «Я прикрою!»</h2>
+    <p>Введите логин и пароль, выданные администратором</p>
+    <div class="lock-error" id="lockError">&nbsp;</div>
+    <div class="login-field">
+      <input type="text" id="loginInput" placeholder="Логин" autocomplete="username">
+    </div>
+    <div class="login-field">
+      <input type="password" id="passwordInput" placeholder="Пароль" autocomplete="current-password">
+    </div>
+    <button class="modal-submit" id="loginSubmitBtn" style="background:var(--amber); color:var(--bg-deep);">Войти</button>
+  </div>
+</div>
+
+<!-- ============ HEADER ============ -->
+<header>
+  <div class="brand">
+    <div class="brand-mark">Я</div>
+    <div>
+      <h1>Я прикрою!</h1>
+      <p>Контроль сроков годности</p>
+    </div>
+  </div>
+  <div class="header-actions">
+    <span class="cloud-dot none" id="cloudStatusDot" title="Нажмите для диагностики связи" style="cursor:pointer;"></span>
+    <button class="icon-btn" id="adminBtn" title="Управление сотрудниками" style="display:none;">👤</button>
+    <button class="icon-btn" id="statsBtn" title="Статистика">📊</button>
+    <button class="icon-btn" id="historyBtn" title="История действий">🕘</button>
+    <button class="icon-btn" id="exportBtn" title="Экспорт в CSV">⬇️</button>
+    <button class="icon-btn" id="installBtn" title="Установить приложение" style="display:none; background:var(--amber); color:var(--bg-deep); border-color:var(--amber);">⬇</button>
+    <button class="icon-btn" id="lockBtn" title="Выйти">🚪</button>
+  </div>
+</header>
+
+<div class="alert-bar" id="alertBar">
+  <span class="dot"></span>
+  <span id="alertText"></span>
+</div>
+
+<div class="alert-bar" id="iosInstallBar" style="background:var(--amber-dim); border-color:#E8A23D55; color:#9c6a1d;">
+  <span>📲</span>
+  <span>Чтобы установить как приложение: нажмите «Поделиться» внизу экрана → «На экран «Домой»»</span>
+</div>
+
+<!-- ============ TABS ============ -->
+<div class="tabs-wrap">
+  <div class="tabs" id="tabsRow"></div>
+</div>
+
+<!-- ============ MAIN ============ -->
+<main>
+  <div class="panel-inner">
+    <div class="toolbar">
+      <input type="text" class="search-input" id="searchInput" placeholder="Поиск товара...">
+      <button class="btn btn-scan" id="openScanBtn">📷 Сканировать</button>
+      <button class="btn btn-primary" id="openAddBtn">+ Вручную</button>
+    </div>
+    <div class="sort-row" id="sortRow">
+      <div class="chip active" data-sort="urgent">🔥 Сначала горящие</div>
+      <div class="chip" data-sort="name">А-Я</div>
+      <div class="chip" data-sort="new">Сначала новые</div>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="empty-state" id="emptyState" style="display:none;">
+      <span class="icon">📦</span>
+      <h3>Пока пусто</h3>
+      <p>Отсканируйте товар или добавьте его вручную, чтобы начать следить за сроком.</p>
+    </div>
+  </div>
+</main>
+
+<button class="fab" id="fabAdd" title="Добавить товар">+</button>
+
+<div class="toast" id="toast"></div>
+
+<!-- ============ ADD/EDIT MODAL ============ -->
+<div class="modal-overlay" id="addModalOverlay">
+  <div class="modal">
+    <button class="modal-close" id="closeAddModal">✕</button>
+    <h2 id="addModalTitle">Новый товар</h2>
+    <p class="sub">Заполните данные о товаре и сроке годности</p>
+    <div class="field">
+      <label>Название товара</label>
+      <input type="text" id="f_name" placeholder="Например: Молоко 3,2% 1л">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Код / штрихкод</label>
+        <input type="text" id="f_code" placeholder="Необязательно">
+      </div>
+      <div class="field">
+        <label>Кол-во</label>
+        <input type="number" id="f_qty" placeholder="1" min="0">
+      </div>
+    </div>
+    <div class="field">
+      <label>Фото товара (необязательно)</label>
+      <div class="photo-picker" id="photoPicker">
+        <input type="file" id="f_photo_input" accept="image/*" capture="environment" style="display:none;">
+        <div class="photo-preview-box" id="photoPreviewBox">
+          <span class="photo-placeholder" id="photoPlaceholder">📷 Добавить фото</span>
+          <img id="photoPreviewImg" style="display:none;">
+          <button type="button" class="photo-remove-btn" id="photoRemoveBtn" style="display:none;">✕</button>
+        </div>
+      </div>
+    </div>
+    <div class="field">
+      <label>Срок годности (дата)</label>
+      <div class="date-input-row">
+        <input type="text" id="f_date_text" class="date-text-input" placeholder="ДД.ММ.ГГГГ" inputmode="numeric" maxlength="10">
+        <input type="date" id="f_date" class="date-native-input">
+      </div>
+      <p class="date-hint">Введите цифрами или нажмите 📅, чтобы выбрать в календаре</p>
+    </div>
+    <button class="modal-submit" id="saveProductBtn">Сохранить товар</button>
+  </div>
+</div>
+
+<!-- ============ SCANNER MODAL ============ -->
+<div class="modal-overlay" id="scanModalOverlay">
+  <div class="modal">
+    <button class="modal-close" id="closeScanModal">✕</button>
+    <h2>Сканер маркировки</h2>
+    <p class="sub">Наведите камеру на код «Честный знак» (Data Matrix) или штрихкод</p>
+    <div class="scan-area">
+      <video id="scanVideo" autoplay playsinline muted></video>
+      <div class="scan-frame"></div>
+      <div class="scan-line"></div>
+      <button class="icon-btn" id="switchCamBtn" title="Сменить камеру" style="display:none; position:absolute; top:10px; right:10px; z-index:5; background:#0008; border-color:#fff3;">🔄</button>
+    </div>
+    <div class="scan-status" id="scanStatus">Запуск камеры...</div>
+    <div class="scan-result" id="scanResultBox">
+      Код распознан: <b id="scanResultText"></b>
+    </div>
+    <div class="field" id="scanDateField" style="display:none;">
+      <label>Укажите срок годности</label>
+      <div class="date-input-row">
+        <input type="text" id="f_scan_date_text" class="date-text-input" placeholder="ДД.ММ.ГГГГ" inputmode="numeric" maxlength="10">
+        <input type="date" id="f_scan_date" class="date-native-input">
+      </div>
+      <p class="date-hint">Введите цифрами или нажмите 📅, чтобы выбрать в календаре</p>
+    </div>
+    <div class="field" id="scanNameField" style="display:none;">
+      <label>Название товара</label>
+      <input type="text" id="f_scan_name" placeholder="Например: Сыр Российский 200г">
+    </div>
+    <button class="modal-submit" id="scanSaveBtn" style="display:none;">Добавить в список</button>
+    <p class="scan-fallback">Камера не работает? <a id="manualFromScan">Ввести вручную</a></p>
+  </div>
+</div>
+
+<!-- ============ ADMIN MODAL: СПИСОК СОТРУДНИКОВ ============ -->
+<div class="modal-overlay" id="adminModalOverlay">
+  <div class="modal" style="max-width:520px;">
+    <button class="modal-close" id="closeAdminModal">✕</button>
+    <h2>Сотрудники и доступ</h2>
+    <p class="sub">Создавайте логины для сотрудников и назначайте им отделы</p>
+    <button class="modal-submit" id="addUserBtn" style="background:var(--amber); color:var(--bg-deep); margin-bottom:16px;">+ Новый сотрудник</button>
+    <div class="admin-user-list" id="adminUserList"></div>
+
+    <div class="admin-backup-section">
+      <h4>Резервная копия</h4>
+      <p class="admin-backup-hint">Сохраните всю базу (товары, историю, сотрудников) в один файл — если что-то пойдёт не так, из него можно всё восстановить.</p>
+      <div class="admin-backup-buttons">
+        <button class="modal-submit" id="downloadBackupBtn" style="background:var(--green); color:#fff;">⬇ Скачать копию</button>
+        <button class="modal-submit" id="restoreBackupBtn" style="background:#00000010; color:var(--bg-deep);">⬆ Восстановить из файла</button>
+      </div>
+      <input type="file" id="restoreFileInput" accept=".json" style="display:none;">
+      <p class="admin-backup-meta" id="lastBackupInfo"></p>
+    </div>
+  </div>
+</div>
+
+<!-- ============ RESTORE CONFIRM MODAL ============ -->
+<div class="modal-overlay" id="restoreConfirmModalOverlay">
+  <div class="modal">
+    <h2>⚠ Восстановить из файла?</h2>
+    <p class="sub" id="restoreConfirmText">Это заменит ВСЕ текущие данные на данные из файла. Действие нельзя отменить.</p>
+    <button class="modal-submit" id="restoreConfirmBtn" style="background:var(--red); color:#fff;">Да, заменить всё</button>
+    <button class="modal-submit" id="restoreCancelBtn" style="margin-top:8px; background:#00000010; color:var(--bg-deep);">Отмена</button>
+  </div>
+</div>
+
+<!-- ============ ADMIN MODAL: РЕДАКТИРОВАНИЕ СОТРУДНИКА ============ -->
+<div class="modal-overlay" id="userEditModalOverlay">
+  <div class="modal">
+    <button class="modal-close" id="closeUserEditModal">✕</button>
+    <h2 id="userEditModalTitle">Новый сотрудник</h2>
+    <p class="sub">Логин используется для входа в приложение</p>
+    <div class="field">
+      <label>Имя сотрудника</label>
+      <input type="text" id="f_user_name" placeholder="Например: Анна">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Логин</label>
+        <input type="text" id="f_user_login" placeholder="например: anna" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Пароль</label>
+        <input type="text" id="f_user_password" placeholder="например: 1234" autocomplete="off">
+      </div>
+    </div>
+    <div class="field">
+      <label>Доступные отделы</label>
+      <div class="dept-checkbox-list" id="deptCheckboxList"></div>
+    </div>
+    <button class="modal-submit" id="saveUserBtn">Сохранить сотрудника</button>
+  </div>
+</div>
+
+<!-- ============ STATS MODAL ============ -->
+<div class="modal-overlay" id="statsModalOverlay">
+  <div class="modal" style="max-width:480px;">
+    <button class="modal-close" id="closeStatsModal">✕</button>
+    <h2>Статистика отдела</h2>
+    <p class="sub" id="statsDeptLabel">Отдел</p>
+    <div class="stats-period-row">
+      <div class="chip active" data-period="7">7 дней</div>
+      <div class="chip" data-period="30">30 дней</div>
+      <div class="chip" data-period="9999">Всё время</div>
+    </div>
+    <div class="stats-grid" id="statsGrid"></div>
+    <div class="stats-leaders" id="statsLeaders"></div>
+  </div>
+</div>
+
+<!-- ============ HISTORY MODAL ============ -->
+<div class="modal-overlay" id="historyModalOverlay">
+  <div class="modal" style="max-width:480px;">
+    <button class="modal-close" id="closeHistoryModal">✕</button>
+    <h2>История действий</h2>
+    <p class="sub" id="historyDeptLabel">Отдел</p>
+    <div class="history-list" id="historyList"></div>
+  </div>
+</div>
+
+<!-- ============ DUPLICATE WARNING MODAL ============ -->
+<div class="modal-overlay" id="duplicateModalOverlay">
+  <div class="modal">
+    <h2>Такой код уже есть</h2>
+    <p class="sub" id="duplicateText">Этот штрихкод уже добавлен в список ранее.</p>
+    <button class="modal-submit" id="duplicateUpdateBtn" style="background:var(--amber); color:var(--bg-deep);">Обновить срок у существующего</button>
+    <button class="modal-submit" id="duplicateNewBtn" style="margin-top:8px; background:#00000010; color:var(--bg-deep);">Добавить как новый товар</button>
+    <button class="modal-submit" id="duplicateCancelBtn" style="margin-top:8px; background:transparent; color:#999;">Отмена</button>
+  </div>
+</div>
+
+<!-- ============ DIAGNOSTICS MODAL ============ -->
+<div class="modal-overlay" id="diagModalOverlay">
+  <div class="modal" style="max-width:480px;">
+    <button class="modal-close" id="closeDiagModal">✕</button>
+    <h2>Диагностика связи</h2>
+    <p class="sub">Проверка соединения с общей базой</p>
+    <div class="diag-box" id="diagBox"></div>
+    <button class="modal-submit" id="diagTestBtn" style="background:var(--amber); color:var(--bg-deep); margin-top:14px;">🔄 Проверить связь сейчас</button>
+    <div class="diag-log" id="diagLog"></div>
+  </div>
+</div>
+
+<!-- ZXing-WASM: распознаёт DataMatrix (марки "Честный знак"), QR, EAN-13/8, Code128 и др.
+     В отличие от jsQR (который умеет только QR), эта библиотека реально читает DataMatrix.
+     .wasm-модуль подтягивается автоматически с того же CDN при первом сканировании. -->
+<script type="module">
+  import { readBarcodes } from "https://cdn.jsdelivr.net/npm/zxing-wasm@3.0.1/dist/reader/index.js";
+  // Делаем функцию доступной обычному (не-module) коду ниже на странице
+  window.__zxingReadBarcodes = readBarcodes;
+  window.__zxingReady = true;
+  console.log('[Я прикрою] ZXing-WASM загружен');
+</script>
+
+<script>
+/* ---------------- СВОЙ ЛОГ-БУФЕР ДЛЯ ВИДИМОЙ ДИАГНОСТИКИ ----------------
+   Перехватываем console.log/console.error с самого старта приложения,
+   чтобы можно было посмотреть их прямо в интерфейсе (кнопка-индикатор
+   связи в шапке), без необходимости открывать инструменты разработчика. */
+window.__appLog = [];
+function pushAppLog(level, args){
+  const text = args.map(a => {
+    if(a instanceof Error) return a.message;
+    if(typeof a === 'object') { try{ return JSON.stringify(a); }catch(e){ return String(a); } }
+    return String(a);
+  }).join(' ');
+  window.__appLog.push({ level, text, time: new Date().toLocaleTimeString('ru-RU') });
+  if(window.__appLog.length > 100) window.__appLog.shift();
+}
+const __origConsoleLog = console.log.bind(console);
+const __origConsoleError = console.error.bind(console);
+console.log = (...args) => { pushAppLog('log', args); __origConsoleLog(...args); };
+console.error = (...args) => { pushAppLog('err', args); __origConsoleError(...args); };
+
+/* =====================================================================
+   "Я прикрою!" — контроль сроков годности
+
+   ХРАНЕНИЕ ДАННЫХ:
+   Чтобы все устройства/кассы видели ОДИН общий список товаров, приложение
+   подключается к бесплатной базе Firebase Realtime Database. Без неё
+   приложение продолжит работать, но данные останутся только в браузере
+   этого устройства (как раньше).
+
+   КАК ПОДКЛЮЧИТЬ ОБЩЕЕ ХРАНИЛИЩЕ (один раз, 5 минут):
+   1. Откройте https://console.firebase.google.com → "Add project" →
+      придумайте любое имя, остальные шаги можно пропустить ("Continue").
+   2. В меню слева: Build → Realtime Database → "Create Database" →
+      выберите любой регион → "Start in test mode" (это даёт доступ на
+      чтение/запись без пароля — нормально для внутреннего магазинного
+      инструмента, но НЕ публикуйте эту ссылку посторонним).
+   3. После создания вверху появится адрес вида:
+        https://ваш-проект-12345-default-rtdb.firebaseio.com
+      Скопируйте именно его.
+   4. Вставьте этот адрес в строку ниже, в FIREBASE_DB_URL, между кавычками.
+   5. Сохраните файл и снова загрузите его на хостинг (Netlify) — готово,
+      теперь все устройства видят одну и ту же базу товаров.
+   ===================================================================== */
+
+const FIREBASE_DB_URL = 'https://ya-prikroyu-default-rtdb.europe-west1.firebasedatabase.app'; // например: 'https://ya-prikroyu-12345-default-rtdb.firebaseio.com'
+const CLOUD_ENABLED = FIREBASE_DB_URL.trim().length > 0;
+const CLOUD_POLL_INTERVAL_MS = 8000; // как часто проверять обновления с других устройств
+
+const DEPARTMENTS = [
+  { id:'drinks',  name:'Напитки',                 icon:'Н' },
+  { id:'grocery', name:'Бакалея',                  icon:'Б' },
+  { id:'sof',     name:'СОФ',                      icon:'С' },
+  { id:'gastro1', name:'Гастроном 1',               icon:'Г1' },
+  { id:'gastro2', name:'Гастроном 2',               icon:'Г2' },
+  { id:'sweets',  name:'Кондитерские изделия',      icon:'К' },
+];
+
+const WARN_DAYS = 14; // уведомлять за 2 недели
+const STORAGE_KEY = 'ya_prikroyu_data_v1';
+const USERS_STORAGE_KEY = 'ya_prikroyu_users_v1';
+const SESSION_USER_KEY = 'ya_prikroyu_session_user_v1';
+const HISTORY_LIMIT_PER_DEPT = 300; // сколько последних записей истории храним на отдел (чтобы база не росла бесконечно)
+
+// Учётная запись администратора "вшита" в код — она не хранится в облаке,
+// поэтому всегда доступна для входа, даже если база только создана и
+// список пользователей в ней пуст. Поменяйте пароль на свой!
+const ROOT_ADMIN = { login:'admin', password:'admin2322', name:'Администратор' };
+
+let DB = loadLocalDB();
+let USERS = loadLocalUsers(); // [{ id, login, password, name, departments:['drinks',...] }] — обычные сотрудники, без admin
+let currentUser = null;       // { login, name, role:'admin'|'staff', departments:[...] }
+let currentDept = null;
+let currentSort = 'urgent';
+let editingId = null;
+let stream = null;
+let scanRAF = null;
+let scannedCode = null;
+let availableCams = [];
+let currentCamIndex = 0;
+let cloudPollTimer = null;
+let cloudSyncing = false;
+let pendingPhotoDataUrl = null; // фото, выбранное в форме добавления/редактирования, до сохранения
+
+function loadLocalUsers(){
+  try{
+    const raw = localStorage.getItem(USERS_STORAGE_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  return [];
+}
+function saveLocalUsers(){
+  localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(USERS));
+}
+
+function loadLocalDB(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      // МИГРАЦИЯ СТАРОГО ФОРМАТА: в самых первых версиях приложения
+      // DB[deptId] был обычным массивом товаров без обёртки {products, history}.
+      // Если в localStorage сохранился именно такой старый формат — это и
+      // было причиной потери данных при сохранении (DB[deptId].products был
+      // отдельным "хвостом", который JSON.stringify(массив) не сериализует).
+      // Поэтому каждый отдел приводим к новой форме принудительно.
+      const migrated = {};
+      DEPARTMENTS.forEach(d => {
+        const value = parsed[d.id];
+        if(Array.isArray(value)){
+          // Старый формат — сам value это и есть список товаров
+          console.log(`[Миграция] Отдел "${d.id}" был в старом формате (простой массив из ${value.length} товаров) — преобразую в новый формат`);
+          migrated[d.id] = { products: value, history: [] };
+        } else if(value && typeof value === 'object'){
+          migrated[d.id] = {
+            products: Array.isArray(value.products) ? value.products : [],
+            history: Array.isArray(value.history) ? value.history : []
+          };
+        } else {
+          migrated[d.id] = { products: [], history: [] };
+        }
+      });
+      return migrated;
+    }
+  }catch(e){
+    console.error('[Я прикрою] Ошибка чтения локальных данных, начинаю с пустой базы:', e.message);
+  }
+  const fresh = {};
+  DEPARTMENTS.forEach(d => fresh[d.id] = { products:[], history:[] });
+  return fresh;
+}
+
+function ensureDeptShape(deptId){
+  const current = DB[deptId];
+  // Если DB[deptId] оказался массивом (старый формат или испорченная
+  // структура) — конвертируем целиком, не оставляя "хвостов" в виде
+  // отдельных свойств .products/.history на самом массиве, потому что
+  // JSON.stringify(массив) такие свойства проигнорирует при сохранении.
+  if(Array.isArray(current)){
+    DB[deptId] = { products: current, history: [] };
+    return;
+  }
+  if(!current) DB[deptId] = { products:[], history:[] };
+  if(!Array.isArray(DB[deptId].products)) DB[deptId].products = [];
+  if(!Array.isArray(DB[deptId].history)) DB[deptId].history = [];
+}
+
+function saveLocalDB(){
+  // localStorage остаётся мгновенным кэшем — приложение работает
+  // без задержек, даже если сеть медленная или временно недоступна.
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
+}
+
+// Записывает одно событие в историю отдела: кто, что и когда сделал.
+// Используется при сканировании, ручном добавлении, изменении, удалении,
+// постановке/снятии с акции.
+function logHistory(deptId, action, productName){
+  ensureDeptShape(deptId);
+  const entry = {
+    id: 'h_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+    action,            // 'add' | 'edit' | 'delete' | 'promo_on' | 'promo_off' | 'scan'
+    productName,
+    staff: (currentUser && currentUser.name) || 'Без имени',
+    ts: Date.now()
+  };
+  DB[deptId].history.unshift(entry);
+  if(DB[deptId].history.length > HISTORY_LIMIT_PER_DEPT){
+    DB[deptId].history.length = HISTORY_LIMIT_PER_DEPT;
+  }
+}
+
+// saveDB() вызывается из всех остальных мест кода после любого изменения
+// товара. Сохраняет мгновенно локально и (если настроено) отправляет
+// в общее облачное хранилище — другие устройства подхватят изменение
+// при следующей синхронизации (раз в CLOUD_POLL_INTERVAL_MS).
+//
+// Технический момент: чтобы два устройства, редактирующие РАЗНЫЕ отделы
+// одновременно, не затирали друг друга, в облако отправляется только
+// поддерево конкретного отдела (PUT по узкому пути), а не вся база целиком.
+//
+// ЗАЩИТА ОТ ГОНКИ: фоновый опрос (pullFromCloud, раз в 8 секунд) может
+// случайно прилететь со старыми данными именно в тот момент, когда мы
+// только что отправили новый товар, но Firebase ещё не отдаёт его в ответ
+// на чтение (особенно если pull стартовал раньше, чем push успел дойти).
+// Чтобы свежедобавленный товар не затирался устаревшим pull-ответом,
+// помечаем момент последней локальной правки по каждому отделу и
+// игнорируем pull-обновление для этого отдела в течение "защитного окна".
+const pendingWriteUntil = {}; // { deptId: timestamp до которого pull для этого отдела игнорируется }
+const WRITE_PROTECTION_MS = 5000;
+
+function saveDB(deptId){
+  saveLocalDB();
+  if(CLOUD_ENABLED && deptId){
+    pendingWriteUntil[deptId] = Date.now() + WRITE_PROTECTION_MS;
+    return pushDeptToCloud(deptId); // возвращаем промис, чтобы вызывающий код мог дождаться отправки перед закрытием формы
+  }
+  return Promise.resolve();
+}
+
+async function pushDeptToCloud(deptId){
+  try{
+    ensureDeptShape(deptId);
+    const payload = JSON.stringify(DB[deptId]);
+    console.log(`Отправляю отдел "${deptId}": товаров=${DB[deptId].products.length}, история=${DB[deptId].history.length}, размер тела=${payload.length} байт`);
+    console.log(`СОДЕРЖИМОЕ payload целиком: ${payload}`);
+    const res = await fetch(`${FIREBASE_DB_URL}/departments/${deptId}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      cache: 'no-store',
+      body: payload
+    });
+    if(!res.ok){
+      let bodyText = '';
+      try{ bodyText = await res.text(); }catch(e){}
+      console.error('[Я прикрою] Облако: ошибка сохранения, код', res.status, 'ответ:', bodyText);
+      showCloudStatus('error');
+      showToast(`❌ Не сохранено в общую базу (ошибка ${res.status}) — только на этом устройстве`, 'error', 6000);
+    } else {
+      const confirmedBody = await res.text();
+      console.log(`Firebase подтвердил запись для "${deptId}", ответ сервера:`, confirmedBody.slice(0, 200));
+      showCloudStatus('ok');
+      showToast('✅ Сохранено в общую базу', 'success', 2000);
+      // Запись подтверждена сервером — снимаем защиту немного раньше таймера,
+      // чтобы следующий pull уже мог приносить чужие изменения по этому отделу.
+      pendingWriteUntil[deptId] = Date.now() + 1500;
+    }
+  }catch(e){
+    console.error('[Я прикрою] Облако недоступно (нет связи?):', e.message);
+    showCloudStatus('offline');
+    showToast(`❌ Нет связи с общей базой — сохранено только локально`, 'error', 6000);
+  }
+}
+
+async function pullFromCloud(){
+  if(!CLOUD_ENABLED || cloudSyncing) return;
+  cloudSyncing = true;
+  try{
+    const res = await fetch(`${FIREBASE_DB_URL}/departments.json?_=${Date.now()}`, { cache: 'no-store' });
+    if(res.ok){
+      const remote = await res.json();
+      console.log('Pull получил с сервера:', JSON.stringify(remote).slice(0, 300));
+      if(remote && typeof remote === 'object'){
+        const now = Date.now();
+        DEPARTMENTS.forEach(d => {
+          // Если по этому отделу только что было локальное изменение —
+          // пропускаем обновление из pull, чтобы не затереть его более
+          // старой версией, которая ещё могла прийти с сервера.
+          if(pendingWriteUntil[d.id] && pendingWriteUntil[d.id] > now){
+            console.log(`Pull пропускает "${d.id}" — действует защита от перезаписи`);
+            return;
+          }
+          if(remote[d.id]){
+            const remoteVal = remote[d.id];
+            // Если в облаке оказался старый формат (сам массив товаров без
+            // обёртки) — конвертируем на лету, как и при загрузке локально.
+            const remoteProducts = Array.isArray(remoteVal) ? remoteVal : (Array.isArray(remoteVal.products) ? remoteVal.products : []);
+            const remoteHistory = Array.isArray(remoteVal) ? [] : (Array.isArray(remoteVal.history) ? remoteVal.history : []);
+            console.log(`Pull обновляет "${d.id}": было товаров=${DB[d.id]?.products?.length ?? 0}, стало=${remoteProducts.length}`);
+            DB[d.id] = { products: remoteProducts, history: remoteHistory };
+          } else {
+            console.log(`Pull: на сервере НЕТ узла "${d.id}" (remote[d.id] = ${remote[d.id]}) — обнуляю локально`);
+            ensureDeptShape(d.id);
+          }
+        });
+        saveLocalDB();
+        if(currentDept){
+          renderGrid();
+          renderTabs();
+          renderAlertBanner();
+          if(document.getElementById('historyModalOverlay')?.classList.contains('show')){
+            renderHistory();
+          }
+        }
+      }
+      showCloudStatus('ok');
+    } else {
+      let bodyText = '';
+      try{ bodyText = await res.text(); }catch(e){}
+      console.error('[Я прикрою] Облако: ошибка чтения, код', res.status, 'ответ:', bodyText);
+      showCloudStatus('error');
+    }
+  }catch(e){
+    console.error('[Я прикрою] Облако недоступно при синхронизации:', e.message);
+    showCloudStatus('offline');
+  }
+  cloudSyncing = false;
+}
+
+let usersSyncing = false;
+let pendingUsersWriteUntil = 0;
+
+// Подтягивает список пользователей из облака. Вызывается и до входа
+// (на экране логина — чтобы пароли, заданные админом на другом устройстве,
+// уже работали), и периодически после входа.
+async function pullUsersFromCloud(){
+  if(!CLOUD_ENABLED || usersSyncing) return;
+  usersSyncing = true;
+  try{
+    const res = await fetch(`${FIREBASE_DB_URL}/users.json?_=${Date.now()}`, { cache: 'no-store' });
+    if(res.ok){
+      const remote = await res.json();
+      if(Array.isArray(remote) && Date.now() > pendingUsersWriteUntil){
+        USERS = remote.filter(Boolean); // Firebase хранит массивы как объекты с "дырками" при удалении — filter(Boolean) убирает null
+        saveLocalUsers();
+        if(currentUser && currentUser.role === 'admin' && document.getElementById('adminModalOverlay')?.classList.contains('show')){
+          renderAdminUserList();
+        }
+      }
+    }
+  }catch(e){
+    console.error('[Я прикрою] Не удалось обновить список пользователей:', e.message);
+  }
+  usersSyncing = false;
+}
+
+async function pushUsersToCloud(){
+  if(!CLOUD_ENABLED) return;
+  pendingUsersWriteUntil = Date.now() + 5000;
+  try{
+    const res = await fetch(`${FIREBASE_DB_URL}/users.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      cache: 'no-store',
+      body: JSON.stringify(USERS)
+    });
+    if(res.ok){
+      pendingUsersWriteUntil = Date.now() + 1500;
+      showToast('✅ Список сотрудников сохранён', 'success', 2000);
+    } else {
+      showToast('❌ Не удалось сохранить список сотрудников в облако', 'error', 5000);
+    }
+  }catch(e){
+    console.error('[Я прикрою] Ошибка сохранения пользователей:', e.message);
+    showToast('❌ Нет связи с облаком — сотрудники сохранены только локально', 'error', 5000);
+  }
+  saveLocalUsers();
+}
+
+function startCloudSync(){
+  if(!CLOUD_ENABLED) return;
+  pullFromCloud(); // сразу при входе подтягиваем последние данные
+  pullUsersFromCloud();
+  if(cloudPollTimer) clearInterval(cloudPollTimer);
+  cloudPollTimer = setInterval(() => {
+    pullFromCloud();
+    pullUsersFromCloud();
+  }, CLOUD_POLL_INTERVAL_MS);
+}
+
+function showCloudStatus(status){
+  const dot = document.getElementById('cloudStatusDot');
+  if(!dot) return;
+  dot.className = 'cloud-dot ' + status;
+}
+
+/* ---------------- ПАНЕЛЬ ВИДИМОЙ ДИАГНОСТИКИ ---------------- */
+function renderDiagBox(){
+  const box = document.getElementById('diagBox');
+  const myDept = DEPARTMENTS.find(d => d.id === currentDept);
+  box.innerHTML = `
+    <div class="diag-row"><span class="diag-label">Облако включено:</span><span class="${CLOUD_ENABLED ? 'diag-ok' : 'diag-bad'}">${CLOUD_ENABLED ? 'да' : 'НЕТ'}</span></div>
+    <div class="diag-row"><span class="diag-label">Адрес базы:</span><span>${escapeHtml(FIREBASE_DB_URL || '(не задан)')}</span></div>
+    <div class="diag-row"><span class="diag-label">Текущий пользователь:</span><span>${currentUser ? escapeHtml(currentUser.login) + ' (' + currentUser.role + ')' : '—'}</span></div>
+    <div class="diag-row"><span class="diag-label">Текущий отдел:</span><span>${myDept ? escapeHtml(myDept.name) + ' (' + currentDept + ')' : '—'}</span></div>
+    <div class="diag-row"><span class="diag-label">Товаров в этом отделе:</span><span>${currentDept ? (DB[currentDept]?.products?.length ?? 0) : '—'}</span></div>
+  `;
+}
+
+function renderDiagLog(){
+  const logBox = document.getElementById('diagLog');
+  if(window.__appLog.length === 0){
+    logBox.textContent = 'Пока нет записей в журнале.';
+    return;
+  }
+  logBox.innerHTML = window.__appLog.slice().reverse().map(entry =>
+    `<div class="${entry.level === 'err' ? 'err' : ''}">[${entry.time}] ${escapeHtml(entry.text)}</div>`
+  ).join('');
+}
+
+document.getElementById('cloudStatusDot').onclick = () => {
+  renderDiagBox();
+  renderDiagLog();
+  document.getElementById('diagModalOverlay').classList.add('show');
+};
+document.getElementById('closeDiagModal').onclick = () => {
+  document.getElementById('diagModalOverlay').classList.remove('show');
+};
+document.getElementById('diagModalOverlay').onclick = (e) => {
+  if(e.target.id === 'diagModalOverlay') e.currentTarget.classList.remove('show');
+};
+
+document.getElementById('diagTestBtn').onclick = async () => {
+  const btn = document.getElementById('diagTestBtn');
+  btn.disabled = true;
+  btn.textContent = 'Проверяю...';
+
+  console.log('=== РУЧНАЯ ПРОВЕРКА СВЯЗИ ЗАПУЩЕНА ===');
+  console.log('CLOUD_ENABLED:', CLOUD_ENABLED, '| URL:', FIREBASE_DB_URL);
+
+  if(!CLOUD_ENABLED){
+    console.error('Облако отключено — FIREBASE_DB_URL пуст в этой версии файла');
+  } else {
+    try{
+      const testRes = await fetch(`${FIREBASE_DB_URL}/__ping.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify({ ts: Date.now(), from: currentUser ? currentUser.login : 'unknown' })
+      });
+      if(testRes.ok){
+        console.log('Тестовая запись прошла успешно, код ответа:', testRes.status);
+        const readRes = await fetch(`${FIREBASE_DB_URL}/__ping.json?_=${Date.now()}`, { cache: 'no-store' });
+        const readData = await readRes.json();
+        console.log('Тестовое чтение вернуло:', JSON.stringify(readData));
+        showToast('✅ Связь с базой работает нормально', 'success', 3000);
+      } else {
+        const bodyText = await testRes.text();
+        console.error('Тестовая запись провалилась, код:', testRes.status, 'ответ:', bodyText);
+        showToast(`❌ Ошибка связи с базой (код ${testRes.status})`, 'error', 5000);
+      }
+    }catch(e){
+      console.error('Тестовая запись не выполнена, ошибка сети:', e.message);
+      showToast('❌ Нет соединения с интернетом или базой', 'error', 5000);
+    }
+  }
+
+  renderDiagBox();
+  renderDiagLog();
+  btn.disabled = false;
+  btn.textContent = '🔄 Проверить связь сейчас';
+};
+
+let toastTimer = null;
+function showToast(message, type = 'info', durationMs = 3000){
+  const toast = document.getElementById('toast');
+  if(!toast) return;
+  toast.textContent = message;
+  toast.className = 'toast show ' + type;
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toast.classList.remove('show');
+  }, durationMs);
+}
+
+/* ---------------- DATE HELPERS ---------------- */
+function daysUntil(dateStr){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const target = new Date(dateStr); target.setHours(0,0,0,0);
+  return Math.round((target - today) / 86400000);
+}
+function formatDate(dateStr){
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('ru-RU', {day:'2-digit', month:'2-digit', year:'numeric'});
+}
+function statusOf(days){
+  if(days < 0) return 'expired';
+  if(days <= 3) return 'danger';
+  if(days <= WARN_DAYS) return 'warn';
+  return 'ok';
+}
+function statusLabel(days){
+  if(days < 0) return `Просрочено ${Math.abs(days)} дн.`;
+  if(days === 0) return 'Сегодня последний день';
+  if(days === 1) return 'Остался 1 день';
+  return `Осталось ${days} дн.`;
+}
+
+/* ---------------- АВТОРИЗАЦИЯ ---------------- */
+const lockOverlay = document.getElementById('lockOverlay');
+const lockError = document.getElementById('lockError');
+
+function renderLock(){
+  lockError.innerHTML = '&nbsp;';
+  document.getElementById('loginInput').value = '';
+  document.getElementById('passwordInput').value = '';
+  lockOverlay.style.display = 'flex';
+}
+
+function findUserByCredentials(login, password){
+  // Администратор задан в коде — проверяем его первым
+  if(login === ROOT_ADMIN.login && password === ROOT_ADMIN.password){
+    return { login: ROOT_ADMIN.login, name: ROOT_ADMIN.name, role: 'admin', departments: DEPARTMENTS.map(d => d.id) };
+  }
+  const found = USERS.find(u => u.login === login && u.password === password);
+  if(found){
+    return { login: found.login, name: found.name, role: 'staff', departments: found.departments || [] };
+  }
+  return null;
+}
+
+async function attemptLogin(){
+  const login = document.getElementById('loginInput').value.trim();
+  const password = document.getElementById('passwordInput').value;
+
+  if(!login || !password){
+    lockError.textContent = 'Введите логин и пароль';
+    return;
+  }
+
+  // Если приложение только открылось и список сотрудников из облака ещё
+  // не подгрузился — даём секунду на подгрузку перед проверкой, иначе
+  // сотрудник, созданный на другом устройстве, может не найтись сразу.
+  if(CLOUD_ENABLED && USERS.length === 0){
+    await pullUsersFromCloud();
+  }
+
+  const user = findUserByCredentials(login, password);
+  if(!user){
+    lockError.textContent = 'Неверный логин или пароль';
+    return;
+  }
+  if(user.role === 'staff' && user.departments.length === 0){
+    lockError.textContent = 'Вам пока не назначен ни один отдел — обратитесь к администратору';
+    return;
+  }
+
+  currentUser = user;
+  localStorage.setItem(SESSION_USER_KEY, JSON.stringify(user));
+  lockOverlay.style.display = 'none';
+  enterApp();
+}
+
+document.getElementById('loginSubmitBtn').onclick = attemptLogin;
+document.getElementById('passwordInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter') attemptLogin();
+});
+
+document.getElementById('lockBtn').onclick = () => {
+  localStorage.removeItem(SESSION_USER_KEY);
+  currentUser = null;
+  currentDept = null;
+  if(cloudPollTimer) clearInterval(cloudPollTimer);
+  renderLock();
+};
+
+/* ---------------- TABS ---------------- */
+function renderTabs(){
+  const row = document.getElementById('tabsRow');
+  row.innerHTML = '';
+  const myDepartments = DEPARTMENTS.filter(d => currentUser.departments.includes(d.id));
+  myDepartments.forEach(d => {
+    const tab = document.createElement('div');
+    tab.className = 'tab' + (d.id === currentDept ? ' active' : '');
+    const urgentCount = (DB[d.id]?.products||[]).filter(p => statusOf(daysUntil(p.date)) !== 'ok').length;
+    tab.innerHTML = `${d.name} <span class="badge ${urgentCount===0?'zero':''}">${urgentCount}</span>`;
+    tab.onclick = () => {
+      if(d.id === currentDept){ return; }
+      currentDept = d.id;
+      renderTabs();
+      renderGrid();
+      renderAlertBanner();
+    };
+    row.appendChild(tab);
+  });
+}
+
+/* ---------------- APP ENTRY ---------------- */
+function enterApp(){
+  const myDepartments = DEPARTMENTS.filter(d => currentUser.departments.includes(d.id));
+  if(!currentDept || !myDepartments.some(d => d.id === currentDept)){
+    currentDept = myDepartments.length > 0 ? myDepartments[0].id : null;
+  }
+  document.getElementById('adminBtn').style.display = currentUser.role === 'admin' ? 'flex' : 'none';
+  renderTabs();
+  renderGrid();
+  renderAlertBanner();
+  startCloudSync();
+}
+
+function renderAlertBanner(){
+  const bar = document.getElementById('alertBar');
+  ensureDeptShape(currentDept);
+  const list = DB[currentDept].products;
+  const urgent = list.filter(p => {
+    const days = daysUntil(p.date);
+    return days <= WARN_DAYS;
+  });
+  if(urgent.length === 0){
+    bar.classList.remove('show');
+    return;
+  }
+  const expiredCount = urgent.filter(p => daysUntil(p.date) < 0).length;
+  let text = `${urgent.length} товар(а) требуют внимания — поставьте на акцию!`;
+  if(expiredCount > 0){
+    text = `⚠ ${expiredCount} товар(а) ПРОСРОЧЕНЫ, ещё ${urgent.length - expiredCount} скоро истекают — поставьте на акцию!`;
+  }
+  document.getElementById('alertText').textContent = text;
+  bar.classList.add('show');
+}
+
+/* ---------------- GRID ---------------- */
+function getSortedList(){
+  ensureDeptShape(currentDept);
+  let list = [...DB[currentDept].products];
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  if(q) list = list.filter(p => p.name.toLowerCase().includes(q));
+
+  if(currentSort === 'urgent'){
+    list.sort((a,b) => daysUntil(a.date) - daysUntil(b.date));
+  } else if(currentSort === 'name'){
+    list.sort((a,b) => a.name.localeCompare(b.name, 'ru'));
+  } else if(currentSort === 'new'){
+    list.sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+  }
+  return list;
+}
+
+function renderGrid(){
+  const grid = document.getElementById('grid');
+  const empty = document.getElementById('emptyState');
+  const list = getSortedList();
+  grid.innerHTML = '';
+
+  if(list.length === 0){
+    empty.style.display = 'block';
+    grid.style.display = 'none';
+  } else {
+    empty.style.display = 'none';
+    grid.style.display = 'grid';
+  }
+
+  list.forEach(p => {
+    const days = daysUntil(p.date);
+    const status = statusOf(days);
+    const card = document.createElement('div');
+    card.className = 'card ' + status;
+    card.innerHTML = `
+      ${p.photo ? `<img src="${p.photo}" class="card-photo" alt="">` : ''}
+      <div class="card-top">
+        <div>
+          <p class="card-name">${escapeHtml(p.name)}</p>
+          <p class="card-meta">${p.code ? 'код: '+escapeHtml(p.code) : 'без кода'} ${p.qty ? '· '+p.qty+' шт' : ''}</p>
+        </div>
+        <div class="stamp ${status}">${statusLabel(days)}</div>
+      </div>
+      <div class="card-date">${formatDate(p.date)} <span>срок годности</span></div>
+      ${ (status === 'warn' || status === 'danger' || status === 'expired') ?
+        `<div class="promo-flag">🏷 Поставьте на акцию!</div>` : '' }
+      <div class="card-actions">
+        <button class="act-promo" data-action="promo" data-id="${p.id}">${p.onPromo ? '✓ На акции' : 'На акцию'}</button>
+        <button class="act-done" data-action="edit" data-id="${p.id}">Изменить</button>
+        <button class="act-del" data-action="del" data-id="${p.id}">✕</button>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+
+  grid.querySelectorAll('[data-action]').forEach(btn => {
+    btn.onclick = () => handleCardAction(btn.dataset.action, btn.dataset.id);
+  });
+}
+
+function escapeHtml(s){
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+async function handleCardAction(action, id){
+  ensureDeptShape(currentDept);
+  const list = DB[currentDept].products;
+  const idx = list.findIndex(p => p.id === id);
+  if(idx === -1) return;
+
+  if(action === 'del'){
+    if(confirm(`Удалить «${list[idx].name}» из списка?`)){
+      const name = list[idx].name;
+      list.splice(idx,1);
+      logHistory(currentDept, 'delete', name);
+      renderGrid();
+      renderTabs();
+      renderAlertBanner();
+      await saveDB(currentDept);
+    }
+  } else if(action === 'promo'){
+    list[idx].onPromo = !list[idx].onPromo;
+    logHistory(currentDept, list[idx].onPromo ? 'promo_on' : 'promo_off', list[idx].name);
+    renderGrid();
+    await saveDB(currentDept);
+  } else if(action === 'edit'){
+    openEditModal(list[idx]);
+  }
+}
+
+/* ---------------- SORT CHIPS / SEARCH ---------------- */
+document.getElementById('sortRow').addEventListener('click', e => {
+  const chip = e.target.closest('.chip');
+  if(!chip) return;
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  currentSort = chip.dataset.sort;
+  renderGrid();
+});
+document.getElementById('searchInput').addEventListener('input', renderGrid);
+
+/* ---------------- РУЧНОЙ ВВОД ДАТЫ (ДД.ММ.ГГГГ) ---------------- */
+// Связывает текстовое поле (для быстрого ввода цифрами) с нативным
+// <input type="date"> (для выбора в календаре) — изменение в одном
+// поле сразу обновляет другое.
+function bindDateInputs(textInput, nativeInput){
+  // Автоматически вставляем точки по мере набора: 01062026 -> 01.06.2026
+  textInput.addEventListener('input', () => {
+    let digits = textInput.value.replace(/\D/g, '').slice(0, 8);
+    let formatted = digits;
+    if(digits.length > 4){
+      formatted = digits.slice(0,2) + '.' + digits.slice(2,4) + '.' + digits.slice(4);
+    } else if(digits.length > 2){
+      formatted = digits.slice(0,2) + '.' + digits.slice(2);
+    }
+    textInput.value = formatted;
+    textInput.classList.remove('invalid');
+
+    if(digits.length === 8){
+      const day = parseInt(digits.slice(0,2), 10);
+      const month = parseInt(digits.slice(2,4), 10);
+      const year = parseInt(digits.slice(4,8), 10);
+      const iso = isoFromDayMonthYear(day, month, year);
+      if(iso){
+        nativeInput.value = iso;
+      } else {
+        textInput.classList.add('invalid');
+        nativeInput.value = '';
+      }
+    } else {
+      nativeInput.value = '';
+    }
+  });
+
+  // Если дату выбрали через календарь — отражаем её текстом
+  nativeInput.addEventListener('change', () => {
+    if(nativeInput.value){
+      textInput.value = formatDate(nativeInput.value);
+      textInput.classList.remove('invalid');
+    }
+  });
+}
+
+function isoFromDayMonthYear(day, month, year){
+  if(!day || !month || !year) return null;
+  if(month < 1 || month > 12) return null;
+  if(year < 2000 || year > 2100) return null;
+  const daysInMonth = new Date(year, month, 0).getDate();
+  if(day < 1 || day > daysInMonth) return null;
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${year}-${pad(month)}-${pad(day)}`;
+}
+
+function setDateFields(textInput, nativeInput, isoDate){
+  nativeInput.value = isoDate || '';
+  textInput.value = isoDate ? formatDate(isoDate) : '';
+  textInput.classList.remove('invalid');
+}
+
+/* ---------------- ADD / EDIT MODAL ---------------- */
+const addModalOverlay = document.getElementById('addModalOverlay');
+
+function resetPhotoPicker(){
+  pendingPhotoDataUrl = null;
+  document.getElementById('photoPreviewImg').style.display = 'none';
+  document.getElementById('photoPreviewImg').src = '';
+  document.getElementById('photoPlaceholder').style.display = 'block';
+  document.getElementById('photoRemoveBtn').style.display = 'none';
+}
+
+function setPhotoPicker(dataUrl){
+  pendingPhotoDataUrl = dataUrl;
+  const img = document.getElementById('photoPreviewImg');
+  img.src = dataUrl;
+  img.style.display = 'block';
+  document.getElementById('photoPlaceholder').style.display = 'none';
+  document.getElementById('photoRemoveBtn').style.display = 'flex';
+}
+
+// Сжимаем фото перед сохранением — иначе каждое фото в полном разрешении
+// телефона (несколько МБ) разнесёт локальное хранилище и облако.
+function compressImageFile(file, maxSize = 800, quality = 0.7){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = () => {
+      img.onload = () => {
+        let { width, height } = img;
+        if(width > height && width > maxSize){
+          height = Math.round(height * (maxSize / width));
+          width = maxSize;
+        } else if(height > maxSize){
+          width = Math.round(width * (maxSize / height));
+          height = maxSize;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = reader.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+document.getElementById('photoPreviewBox').onclick = () => {
+  document.getElementById('f_photo_input').click();
+};
+document.getElementById('f_photo_input').onchange = async (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  try{
+    const dataUrl = await compressImageFile(file);
+    setPhotoPicker(dataUrl);
+  }catch(err){
+    console.log('[Я прикрою] Не удалось обработать фото:', err.message);
+    alert('Не удалось загрузить фото, попробуйте другое изображение');
+  }
+};
+document.getElementById('photoRemoveBtn').onclick = (e) => {
+  e.stopPropagation();
+  resetPhotoPicker();
+  document.getElementById('f_photo_input').value = '';
+};
+
+function openAddModal(){
+  editingId = null;
+  document.getElementById('addModalTitle').textContent = 'Новый товар';
+  document.getElementById('f_name').value = '';
+  document.getElementById('f_code').value = '';
+  document.getElementById('f_qty').value = '';
+  resetPhotoPicker();
+  document.getElementById('f_photo_input').value = '';
+  setDateFields(document.getElementById('f_date_text'), document.getElementById('f_date'), '');
+  addModalOverlay.classList.add('show');
+}
+function openEditModal(product){
+  editingId = product.id;
+  document.getElementById('addModalTitle').textContent = 'Изменить товар';
+  document.getElementById('f_name').value = product.name;
+  document.getElementById('f_code').value = product.code || '';
+  document.getElementById('f_qty').value = product.qty || '';
+  if(product.photo){
+    setPhotoPicker(product.photo);
+  } else {
+    resetPhotoPicker();
+  }
+  document.getElementById('f_photo_input').value = '';
+  setDateFields(document.getElementById('f_date_text'), document.getElementById('f_date'), product.date);
+  addModalOverlay.classList.add('show');
+}
+document.getElementById('openAddBtn').onclick = openAddModal;
+document.getElementById('fabAdd').onclick = openAddModal;
+document.getElementById('closeAddModal').onclick = () => addModalOverlay.classList.remove('show');
+addModalOverlay.onclick = e => { if(e.target === addModalOverlay) addModalOverlay.classList.remove('show'); };
+
+document.getElementById('saveProductBtn').onclick = async () => {
+  const name = document.getElementById('f_name').value.trim();
+  const code = document.getElementById('f_code').value.trim();
+  const qty = parseInt(document.getElementById('f_qty').value) || 0;
+  const date = document.getElementById('f_date').value;
+
+  if(!name || !date){
+    alert('Укажите название товара и срок годности');
+    return;
+  }
+
+  ensureDeptShape(currentDept);
+
+  if(editingId){
+    const item = DB[currentDept].products.find(p => p.id === editingId);
+    item.name = name; item.code = code; item.qty = qty; item.date = date;
+    item.photo = pendingPhotoDataUrl;
+    logHistory(currentDept, 'edit', name);
+  } else {
+    DB[currentDept].products.push({
+      id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+      name, code, qty, date,
+      photo: pendingPhotoDataUrl,
+      onPromo:false,
+      createdAt: Date.now()
+    });
+    logHistory(currentDept, 'add', name);
+  }
+
+  // Ждём подтверждения записи в облако ПЕРЕД закрытием формы — если человек
+  // сразу после этого обновит страницу, данные уже успеют уйти на сервер,
+  // а не потеряются из-за прерванного на середине сетевого запроса.
+  console.log(`ПЕРЕД сохранением: currentDept="${currentDept}", DB[currentDept].products.length=${DB[currentDept].products.length}`);
+  const saveBtn = document.getElementById('saveProductBtn');
+  const originalText = saveBtn.textContent;
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Сохраняю...';
+
+  await saveDB(currentDept);
+
+  saveBtn.disabled = false;
+  saveBtn.textContent = originalText;
+
+  addModalOverlay.classList.remove('show');
+  renderGrid();
+  renderTabs();
+  renderAlertBanner();
+};
+
+/* ---------------- SCANNER ---------------- */
+const scanModalOverlay = document.getElementById('scanModalOverlay');
+const scanVideo = document.getElementById('scanVideo');
+const scanStatus = document.getElementById('scanStatus');
+const scanResultBox = document.getElementById('scanResultBox');
+const scanResultText = document.getElementById('scanResultText');
+
+document.getElementById('openScanBtn').onclick = openScanModal;
+document.getElementById('closeScanModal').onclick = closeScanModal;
+scanModalOverlay.onclick = e => { if(e.target === scanModalOverlay) closeScanModal(); };
+document.getElementById('manualFromScan').onclick = () => {
+  closeScanModal();
+  openAddModal();
+};
+
+async function openScanModal(){
+  scanModalOverlay.classList.add('show');
+  scanResultBox.classList.remove('show');
+  document.getElementById('scanDateField').style.display = 'none';
+  document.getElementById('scanNameField').style.display = 'none';
+  document.getElementById('scanSaveBtn').style.display = 'none';
+  setDateFields(document.getElementById('f_scan_date_text'), document.getElementById('f_scan_date'), '');
+  document.getElementById('f_scan_name').value = '';
+  scannedCode = null;
+  scanStatus.textContent = 'Запуск камеры...';
+
+  // 1) Проверка: страница вообще может запрашивать камеру?
+  // Камера работает только на https:// или http://localhost — на file:// и
+  // обычном http:// (без localhost) браузер блокирует доступ заранее.
+  const isSecure = window.isSecureContext === true;
+  const protocol = window.location.protocol;
+
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    scanStatus.innerHTML =
+      '❌ Браузер не даёт доступ к камере на этой странице.<br>' +
+      'Протокол: <b>' + protocol + '</b>. ' +
+      (protocol === 'file:'
+        ? 'Файл открыт прямо с диска — для камеры нужно открыть страницу через сайт (https://) или локальный сервер, а не двойным щелчком по файлу.'
+        : 'Камера требует защищённое соединение (https://).');
+    return;
+  }
+
+  if(!isSecure){
+    scanStatus.innerHTML =
+      '❌ Нет доступа к камере: соединение не защищено (' + protocol + ').<br>' +
+      'Откройте страницу по адресу, начинающемуся на <b>https://</b>, либо на <b>http://localhost</b> — на обычном http и file:// браузер блокирует камеру.';
+    return;
+  }
+
+  // Проверяем, не заблокирован ли доступ заранее (тогда диалог разрешения
+  // браузер уже не покажет, а сразу откажет) — предупреждаем об этом сразу.
+  try{
+    if(navigator.permissions && navigator.permissions.query){
+      const perm = await navigator.permissions.query({ name: 'camera' });
+      console.log('[Я прикрою] Статус разрешения камеры:', perm.state);
+      if(perm.state === 'denied'){
+        scanStatus.innerHTML =
+          '❌ Доступ к камере заблокирован в настройках браузера для этого сайта — поэтому окно запроса больше не появляется.<br>' +
+          'Откройте настройки сайта (значок 🔒 или ⓘ рядом с адресной строкой) → «Камера» → «Разрешить», затем обновите страницу.';
+        return;
+      }
+    }
+  }catch(e){
+    // Permissions API для камеры не во всех браузерах поддерживается — это не критично, просто продолжаем
+    console.log('[Я прикрою] Permissions API недоступен, продолжаем напрямую через getUserMedia');
+  }
+
+  try{
+    console.log('[Я прикрою] Запрашиваю доступ к камере через getUserMedia...');
+    // Сразу просим простую заднюю камеру — именно этот вызов показывает
+    // системный диалог разрешения браузера. Список камер (enumerateDevices)
+    // запрашиваем только ПОСЛЕ того как разрешение уже выдано, иначе в
+    // некоторых браузерах диалог разрешения может не появиться вовсе.
+    await startCamera();
+    console.log('[Я прикрою] Камера запущена, поток:', stream);
+
+    try{
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      availableCams = devices.filter(d => d.kind === 'videoinput');
+      console.log('[Я прикрою] Найдено камер:', availableCams.length, availableCams);
+    }catch(e){ availableCams = []; }
+
+    document.getElementById('switchCamBtn').style.display = availableCams.length > 1 ? 'flex' : 'none';
+
+  }catch(err){
+    console.error('[Я прикрою] Ошибка доступа к камере:', err.name, err.message);
+    // Показываем точную причину вместо общей фразы
+    let msg = '❌ Камера не запустилась.<br>';
+    switch(err.name){
+      case 'NotAllowedError':
+        msg += 'Доступ к камере запрещён. Проверьте значок камеры/замочка в адресной строке и разрешите доступ для этого сайта, затем обновите страницу.';
+        break;
+      case 'NotFoundError':
+        msg += 'На этом устройстве не найдено ни одной камеры.';
+        break;
+      case 'NotReadableError':
+        msg += 'Камера занята другим приложением или вкладкой. Закройте их и попробуйте снова.';
+        break;
+      case 'OverconstrainedError':
+        msg += 'Запрошенная камера недоступна на этом устройстве.';
+        break;
+      case 'SecurityError':
+        msg += 'Браузер блокирует камеру на этой странице по соображениям безопасности (нужен https://).';
+        break;
+      default:
+        msg += 'Техническая причина: ' + (err.name || 'unknown') + (err.message ? (' — ' + err.message) : '');
+    }
+    msg += '<br>Можно ввести данные вручную ниже.';
+    scanStatus.innerHTML = msg;
+  }
+}
+
+async function startCamera(){
+  // останавливаем предыдущий поток, если был
+  if(stream){
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+
+  let constraints;
+  if(availableCams.length > 0){
+    // Это срабатывает только при ПЕРЕКЛЮЧЕНИИ камеры (после первого разрешения),
+    // когда deviceId уже реальные, а не пустые строки.
+    constraints = { video: { deviceId: { exact: availableCams[currentCamIndex].deviceId } }, audio:false };
+  } else {
+    // Первый запуск: простой запрос без привязки к конкретному устройству —
+    // именно такой запрос надёжно показывает диалог разрешения в браузере.
+    constraints = { video: { facingMode: { ideal: 'environment' } }, audio:false };
+  }
+
+  try{
+    stream = await navigator.mediaDevices.getUserMedia(constraints);
+  }catch(innerErr){
+    // если конкретное устройство/режим не открылись — пробуем самый базовый запрос
+    stream = await navigator.mediaDevices.getUserMedia({ video:true, audio:false });
+  }
+
+  scanVideo.srcObject = stream;
+  await scanVideo.play().catch(()=>{});
+  scanStatus.textContent = 'Наведите камеру на код маркировки';
+  scanLoop();
+}
+
+document.getElementById('switchCamBtn').onclick = async () => {
+  if(availableCams.length < 2) return;
+  currentCamIndex = (currentCamIndex + 1) % availableCams.length;
+  scanStatus.textContent = 'Переключение камеры...';
+  try{
+    await startCamera();
+  }catch(e){
+    scanStatus.textContent = 'Не удалось переключить камеру.';
+  }
+};
+
+function closeScanModal(){
+  scanModalOverlay.classList.remove('show');
+  if(scanRAF) cancelAnimationFrame(scanRAF);
+  if(stream){
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+  document.getElementById('switchCamBtn').style.display = 'none';
+}
+
+const canvasEl = document.createElement('canvas');
+let nativeBarcodeDetector = null;
+let scanBusy = false;          // не даём запускать второе распознавание, пока первое не закончилось
+let lastScanAttempt = 0;
+const SCAN_INTERVAL_MS = 350;  // ограничиваем частоту, ZXing-WASM тяжелее, чем jsQR
+
+// Поддерживаемые форматы: DataMatrix — для марок "Честный знак",
+// плюс QR и основные штрихкоды на случай обычной упаковки.
+const BARCODE_FORMATS_NATIVE = ['data_matrix', 'qr_code', 'ean_13', 'ean_8', 'code_128', 'upc_a', 'upc_e', 'itf'];
+const BARCODE_FORMATS_ZXING = ['DataMatrix', 'QRCode', 'EAN-13', 'EAN-8', 'Code128', 'UPC-A', 'UPC-E', 'ITF', 'Aztec', 'PDF417'];
+
+async function initDetector(){
+  // 1) Нативный Barcode Detection API — есть в Chrome/Android, умеет DataMatrix,
+  //    быстрее и не требует загрузки .wasm
+  if('BarcodeDetector' in window){
+    try{
+      const supported = await window.BarcodeDetector.getSupportedFormats();
+      const formats = BARCODE_FORMATS_NATIVE.filter(f => supported.includes(f));
+      if(formats.length > 0){
+        nativeBarcodeDetector = new window.BarcodeDetector({ formats });
+        console.log('[Я прикрою] Используется нативный BarcodeDetector, форматы:', formats);
+        return 'native';
+      }
+    }catch(e){
+      console.log('[Я прикрою] BarcodeDetector недоступен:', e.message);
+    }
+  }
+  // 2) Фоллбэк — ZXing-WASM (работает везде, но грузит ~1 МБ модуль при первом сканировании)
+  console.log('[Я прикрою] Используется ZXing-WASM (фоллбэк)');
+  return 'zxing';
+}
+
+let detectorMode = null; // 'native' | 'zxing'
+
+function scanLoop(){
+  if(!stream) return;
+  scanRAF = requestAnimationFrame(scanLoop);
+
+  const now = performance.now();
+  if(scanBusy || now - lastScanAttempt < SCAN_INTERVAL_MS) return;
+  if(scanVideo.readyState !== scanVideo.HAVE_ENOUGH_DATA) return;
+
+  lastScanAttempt = now;
+  scanBusy = true;
+  detectFrame().finally(() => { scanBusy = false; });
+}
+
+async function detectFrame(){
+  if(detectorMode === null){
+    detectorMode = await initDetector();
+  }
+
+  canvasEl.width = scanVideo.videoWidth;
+  canvasEl.height = scanVideo.videoHeight;
+  const ctx = canvasEl.getContext('2d');
+  ctx.drawImage(scanVideo, 0, 0, canvasEl.width, canvasEl.height);
+
+  try{
+    if(detectorMode === 'native' && nativeBarcodeDetector){
+      const results = await nativeBarcodeDetector.detect(canvasEl);
+      if(results && results.length > 0){
+        handleDetection(results[0].rawValue, results[0].format);
+      }
+    } else if(window.__zxingReadBarcodes){
+      const imgData = ctx.getImageData(0, 0, canvasEl.width, canvasEl.height);
+      const results = await window.__zxingReadBarcodes(imgData, {
+        tryHarder: true,
+        formats: BARCODE_FORMATS_ZXING,
+        maxNumberOfSymbols: 1
+      });
+      if(results && results.length > 0 && results[0].text){
+        handleDetection(results[0].text, results[0].format);
+      }
+    }
+  }catch(e){
+    // Ошибки распознавания одного кадра не критичны — просто пробуем следующий кадр
+    console.log('[Я прикрою] Кадр не распознан:', e.message);
+  }
+}
+
+function handleDetection(text, format){
+  if(!text || text === scannedCode) return;
+  scannedCode = text;
+  onCodeScanned(text, format);
+}
+
+// Короткий звуковой сигнал подтверждения (как на кассовом сканере) —
+// генерируется на лету через Web Audio API, без файла со звуком.
+let audioCtx = null;
+function playBeep(){
+  try{
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.frequency.value = 880;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.15);
+  }catch(e){
+    console.log('[Я прикрою] Звук недоступен:', e.message);
+  }
+}
+function vibrateOk(){
+  if(navigator.vibrate){
+    try{ navigator.vibrate(80); }catch(e){}
+  }
+}
+
+function onCodeScanned(data, format){
+  playBeep();
+  vibrateOk();
+
+  scanResultText.textContent = data.length > 60 ? data.slice(0,60)+'…' : data;
+  scanResultBox.classList.add('show');
+  const formatLabel = format ? ` (формат: ${format})` : '';
+
+  // Проверяем, нет ли уже товара с таким же кодом в текущем отделе —
+  // чтобы не плодить дубликаты при повторном сканировании той же позиции.
+  ensureDeptShape(currentDept);
+  const existing = DB[currentDept].products.find(p => p.code && p.code === data);
+  if(existing){
+    showDuplicateWarning(existing, data);
+    return;
+  }
+
+  scanStatus.textContent = 'Код распознан' + formatLabel + '! Срок годности код не содержит — укажите его ниже.';
+  document.getElementById('scanDateField').style.display = 'block';
+  document.getElementById('scanNameField').style.display = 'block';
+  document.getElementById('scanSaveBtn').style.display = 'block';
+
+  // Пробуем разобрать GTIN из GS1 DataMatrix (структура марки "Честный знак": (01)GTIN(21)серийный)
+  const gtinMatch = data.match(/01(\d{14})/);
+  if(gtinMatch){
+    document.getElementById('f_scan_name').placeholder = 'GTIN: ' + gtinMatch[1] + ' — введите название';
+  }
+}
+
+let duplicateContext = null; // { existingProduct, code }
+function showDuplicateWarning(existingProduct, code){
+  duplicateContext = { existingProduct, code };
+  document.getElementById('duplicateText').innerHTML =
+    `Товар «<b>${escapeHtml(existingProduct.name)}</b>» с этим кодом уже в списке (срок: ${formatDate(existingProduct.date)}).<br>Что сделать?`;
+  document.getElementById('duplicateModalOverlay').classList.add('show');
+  scanStatus.textContent = 'Найден повторный код — выберите действие ниже';
+}
+
+document.getElementById('duplicateUpdateBtn').onclick = () => {
+  if(!duplicateContext) return;
+  document.getElementById('duplicateModalOverlay').classList.remove('show');
+  closeScanModal();
+  openEditModal(duplicateContext.existingProduct);
+  duplicateContext = null;
+};
+document.getElementById('duplicateNewBtn').onclick = () => {
+  document.getElementById('duplicateModalOverlay').classList.remove('show');
+  document.getElementById('scanDateField').style.display = 'block';
+  document.getElementById('scanNameField').style.display = 'block';
+  document.getElementById('scanSaveBtn').style.display = 'block';
+  scanStatus.textContent = 'Хорошо, заполните данные для нового товара ниже.';
+  duplicateContext = null;
+};
+document.getElementById('duplicateCancelBtn').onclick = () => {
+  document.getElementById('duplicateModalOverlay').classList.remove('show');
+  scannedCode = null; // разрешаем повторно отсканировать тот же код
+  scanStatus.textContent = 'Наведите камеру на код маркировки';
+  duplicateContext = null;
+};
+
+document.getElementById('scanSaveBtn').onclick = async () => {
+  const date = document.getElementById('f_scan_date').value;
+  const name = document.getElementById('f_scan_name').value.trim();
+  if(!date || !name){
+    alert('Укажите название товара и срок годности');
+    return;
+  }
+  ensureDeptShape(currentDept);
+  DB[currentDept].products.push({
+    id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+    name,
+    code: scannedCode || '',
+    qty: 1,
+    date,
+    photo: null,
+    onPromo:false,
+    createdAt: Date.now()
+  });
+  logHistory(currentDept, 'scan', name);
+
+  const scanSaveBtn = document.getElementById('scanSaveBtn');
+  scanSaveBtn.disabled = true;
+  scanSaveBtn.textContent = 'Сохраняю...';
+
+  await saveDB(currentDept);
+
+  scanSaveBtn.disabled = false;
+  scanSaveBtn.textContent = 'Добавить в список';
+
+  closeScanModal();
+  renderGrid();
+  renderTabs();
+  renderAlertBanner();
+};
+
+/* ---------------- АДМИН: СОТРУДНИКИ И ДОСТУП ---------------- */
+let editingUserId = null;
+
+function renderAdminUserList(){
+  const container = document.getElementById('adminUserList');
+  if(USERS.length === 0){
+    container.innerHTML = '<div class="admin-empty">Сотрудников пока нет — нажмите «+ Новый сотрудник», чтобы создать первого.</div>';
+    return;
+  }
+  container.innerHTML = USERS.map(u => {
+    const deptTags = (u.departments || []).map(id => {
+      const d = DEPARTMENTS.find(x => x.id === id);
+      return d ? `<span class="admin-user-dept-tag">${escapeHtml(d.name)}</span>` : '';
+    }).join('') || '<span class="admin-user-dept-tag" style="background:var(--red-dim); color:#a33;">Без отделов</span>';
+
+    return `
+      <div class="admin-user-row">
+        <div class="admin-user-avatar">${escapeHtml((u.name || '?').slice(0,1).toUpperCase())}</div>
+        <div class="admin-user-info">
+          <div class="admin-user-name">${escapeHtml(u.name)}</div>
+          <div class="admin-user-meta">логин: ${escapeHtml(u.login)} · пароль: ${escapeHtml(u.password)}</div>
+          <div class="admin-user-depts">${deptTags}</div>
+        </div>
+        <div class="admin-user-actions">
+          <button data-action="edit-user" data-id="${u.id}" title="Изменить">✏️</button>
+          <button class="danger" data-action="delete-user" data-id="${u.id}" title="Удалить">🗑</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  container.querySelectorAll('[data-action]').forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.id;
+      if(btn.dataset.action === 'edit-user'){
+        openUserEditModal(USERS.find(u => u.id === id));
+      } else if(btn.dataset.action === 'delete-user'){
+        const u = USERS.find(u => u.id === id);
+        if(u && confirm(`Удалить сотрудника «${u.name}»? Он больше не сможет войти в приложение.`)){
+          USERS = USERS.filter(x => x.id !== id);
+          pushUsersToCloud();
+          renderAdminUserList();
+        }
+      }
+    };
+  });
+}
+
+document.getElementById('adminBtn').onclick = () => {
+  renderAdminUserList();
+  updateLastBackupInfo();
+  document.getElementById('adminModalOverlay').classList.add('show');
+};
+document.getElementById('closeAdminModal').onclick = () => {
+  document.getElementById('adminModalOverlay').classList.remove('show');
+};
+document.getElementById('adminModalOverlay').onclick = (e) => {
+  if(e.target.id === 'adminModalOverlay') e.currentTarget.classList.remove('show');
+};
+
+function renderDeptCheckboxes(selectedIds){
+  const container = document.getElementById('deptCheckboxList');
+  container.innerHTML = '';
+  DEPARTMENTS.forEach(d => {
+    const row = document.createElement('label');
+    row.className = 'dept-checkbox-row' + (selectedIds.includes(d.id) ? ' checked' : '');
+    row.innerHTML = `<input type="checkbox" value="${d.id}" ${selectedIds.includes(d.id) ? 'checked' : ''}><span>${escapeHtml(d.name)}</span>`;
+    row.querySelector('input').addEventListener('change', (e) => {
+      row.classList.toggle('checked', e.target.checked);
+    });
+    container.appendChild(row);
+  });
+}
+
+function openUserEditModal(user){
+  editingUserId = user ? user.id : null;
+  document.getElementById('userEditModalTitle').textContent = user ? 'Изменить сотрудника' : 'Новый сотрудник';
+  document.getElementById('f_user_name').value = user ? user.name : '';
+  document.getElementById('f_user_login').value = user ? user.login : '';
+  document.getElementById('f_user_password').value = user ? user.password : '';
+  renderDeptCheckboxes(user ? (user.departments || []) : []);
+  document.getElementById('userEditModalOverlay').classList.add('show');
+}
+
+document.getElementById('addUserBtn').onclick = () => openUserEditModal(null);
+document.getElementById('closeUserEditModal').onclick = () => {
+  document.getElementById('userEditModalOverlay').classList.remove('show');
+};
+document.getElementById('userEditModalOverlay').onclick = (e) => {
+  if(e.target.id === 'userEditModalOverlay') e.currentTarget.classList.remove('show');
+};
+
+document.getElementById('saveUserBtn').onclick = async () => {
+  const name = document.getElementById('f_user_name').value.trim();
+  const login = document.getElementById('f_user_login').value.trim().toLowerCase();
+  const password = document.getElementById('f_user_password').value.trim();
+  const departments = [...document.querySelectorAll('#deptCheckboxList input:checked')].map(el => el.value);
+
+  if(!name || !login || !password){
+    alert('Заполните имя, логин и пароль');
+    return;
+  }
+  if(login === ROOT_ADMIN.login){
+    alert('Этот логин зарезервирован для администратора, выберите другой');
+    return;
+  }
+  const duplicate = USERS.find(u => u.login === login && u.id !== editingUserId);
+  if(duplicate){
+    alert('Такой логин уже используется другим сотрудником');
+    return;
+  }
+
+  const saveBtn = document.getElementById('saveUserBtn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Сохраняю...';
+
+  if(editingUserId){
+    const u = USERS.find(u => u.id === editingUserId);
+    u.name = name; u.login = login; u.password = password; u.departments = departments;
+  } else {
+    USERS.push({
+      id: 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+      name, login, password, departments
+    });
+  }
+
+  await pushUsersToCloud();
+
+  saveBtn.disabled = false;
+  saveBtn.textContent = 'Сохранить сотрудника';
+
+  document.getElementById('userEditModalOverlay').classList.remove('show');
+  renderAdminUserList();
+};
+
+/* ---------------- СТАТИСТИКА ---------------- */
+let statsPeriodDays = 7;
+
+function renderStats(){
+  ensureDeptShape(currentDept);
+  const dept = DEPARTMENTS.find(d => d.id === currentDept);
+  document.getElementById('statsDeptLabel').textContent = dept ? dept.name : '';
+
+  const history = DB[currentDept].history || [];
+  const products = DB[currentDept].products || [];
+  const cutoff = Date.now() - statsPeriodDays * 86400000;
+  const periodHistory = history.filter(h => h.ts >= cutoff);
+
+  const addedCount = periodHistory.filter(h => h.action === 'add' || h.action === 'scan').length;
+  const deletedCount = periodHistory.filter(h => h.action === 'delete').length;
+  const promoCount = periodHistory.filter(h => h.action === 'promo_on').length;
+  const expiredNow = products.filter(p => daysUntil(p.date) < 0).length;
+
+  document.getElementById('statsGrid').innerHTML = `
+    <div class="stats-card"><span class="num">${addedCount}</span><span class="label">Добавлено товаров</span></div>
+    <div class="stats-card"><span class="num">${promoCount}</span><span class="label">Поставлено на акцию</span></div>
+    <div class="stats-card"><span class="num">${deletedCount}</span><span class="label">Списано / удалено</span></div>
+    <div class="stats-card"><span class="num" style="color:${expiredNow>0?'var(--red)':'var(--green)'}">${expiredNow}</span><span class="label">Сейчас просрочено</span></div>
+  `;
+
+  // Рейтинг по сотрудникам — кто внёс больше всего действий за период
+  const byStaff = {};
+  periodHistory.forEach(h => {
+    byStaff[h.staff] = (byStaff[h.staff] || 0) + 1;
+  });
+  const sorted = Object.entries(byStaff).sort((a,b) => b[1] - a[1]).slice(0, 8);
+
+  const leadersBox = document.getElementById('statsLeaders');
+  if(sorted.length === 0){
+    leadersBox.innerHTML = '<h4>Активность сотрудников</h4><div class="history-empty">Нет данных за этот период</div>';
+  } else {
+    leadersBox.innerHTML = '<h4>Активность сотрудников</h4>' + sorted.map(([name, count]) => `
+      <div class="stats-leader-row"><span>${escapeHtml(name)}</span><span class="count">${count}</span></div>
+    `).join('');
+  }
+}
+
+document.getElementById('statsBtn').onclick = () => {
+  if(!currentDept) return;
+  renderStats();
+  document.getElementById('statsModalOverlay').classList.add('show');
+};
+document.getElementById('closeStatsModal').onclick = () => {
+  document.getElementById('statsModalOverlay').classList.remove('show');
+};
+document.getElementById('statsModalOverlay').onclick = (e) => {
+  if(e.target.id === 'statsModalOverlay') e.currentTarget.classList.remove('show');
+};
+document.querySelector('.stats-period-row').addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if(!chip) return;
+  document.querySelectorAll('.stats-period-row .chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  statsPeriodDays = parseInt(chip.dataset.period, 10);
+  renderStats();
+});
+
+/* ---------------- ИСТОРИЯ ДЕЙСТВИЙ ---------------- */
+const HISTORY_ACTION_LABELS = {
+  add:       { icon:'➕', verb:'добавил(а) товар' },
+  edit:      { icon:'✏️', verb:'изменил(а) товар' },
+  delete:    { icon:'🗑', verb:'удалил(а) товар' },
+  promo_on:  { icon:'🏷', verb:'поставил(а) на акцию' },
+  promo_off: { icon:'↩️', verb:'снял(а) с акции' },
+  scan:      { icon:'📷', verb:'отсканировал(а) товар' }
+};
+
+function renderHistory(){
+  ensureDeptShape(currentDept);
+  const dept = DEPARTMENTS.find(d => d.id === currentDept);
+  document.getElementById('historyDeptLabel').textContent = dept ? dept.name : '';
+  const list = DB[currentDept].history || [];
+  const container = document.getElementById('historyList');
+
+  if(list.length === 0){
+    container.innerHTML = '<div class="history-empty">Пока нет записей — действия появятся здесь после первого добавления, изменения или акции.</div>';
+    return;
+  }
+
+  container.innerHTML = list.map(h => {
+    const meta = HISTORY_ACTION_LABELS[h.action] || { icon:'•', verb:h.action };
+    const d = new Date(h.ts);
+    const timeStr = d.toLocaleDateString('ru-RU', {day:'2-digit', month:'2-digit'}) + ' ' +
+                    d.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'});
+    return `
+      <div class="history-item">
+        <div class="history-icon ${h.action}">${meta.icon}</div>
+        <div class="history-text"><b>${escapeHtml(h.staff)}</b> ${meta.verb} «${escapeHtml(h.productName)}»</div>
+        <div class="history-time">${timeStr}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+document.getElementById('historyBtn').onclick = () => {
+  if(!currentDept) return;
+  renderHistory();
+  document.getElementById('historyModalOverlay').classList.add('show');
+};
+document.getElementById('closeHistoryModal').onclick = () => {
+  document.getElementById('historyModalOverlay').classList.remove('show');
+};
+document.getElementById('historyModalOverlay').onclick = (e) => {
+  if(e.target.id === 'historyModalOverlay') e.currentTarget.classList.remove('show');
+};
+
+/* ---------------- ЭКСПОРТ В CSV ---------------- */
+function exportCsv(){
+  if(!currentDept) return;
+  ensureDeptShape(currentDept);
+  const dept = DEPARTMENTS.find(d => d.id === currentDept);
+  const list = DB[currentDept].products;
+
+  if(list.length === 0){
+    alert('В этом отделе пока нет товаров для экспорта');
+    return;
+  }
+
+  const headers = ['Название','Код','Количество','Срок годности','Осталось дней','На акции','Статус'];
+  const rows = list.map(p => {
+    const days = daysUntil(p.date);
+    const status = statusOf(days);
+    const statusText = { ok:'В норме', warn:'Скоро истекает', danger:'Горит', expired:'Просрочен' }[status];
+    return [
+      p.name,
+      p.code || '',
+      p.qty || '',
+      formatDate(p.date),
+      days,
+      p.onPromo ? 'Да' : 'Нет',
+      statusText
+    ];
+  });
+
+  // Экранируем поля с запятыми/кавычками по правилам CSV
+  const csvEscape = (val) => {
+    const s = String(val ?? '');
+    if(s.includes(',') || s.includes('"') || s.includes('\n')){
+      return '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+  };
+
+  const csvLines = [headers, ...rows].map(row => row.map(csvEscape).join(','));
+  // BOM в начале — чтобы Excel на Windows корректно показывал кириллицу
+  const csvContent = '\uFEFF' + csvLines.join('\r\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const dateStr = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `Я_прикрою_${dept ? dept.name : 'отдел'}_${dateStr}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById('exportBtn').onclick = exportCsv;
+
+/* ---------------- РЕЗЕРВНОЕ КОПИРОВАНИЕ ВСЕЙ БАЗЫ ---------------- */
+const BACKUP_FORMAT_VERSION = 1;
+const LAST_BACKUP_KEY = 'ya_prikroyu_last_backup_v1';
+
+function downloadBackup(){
+  // Собираем абсолютно всё: товары и историю по каждому отделу + список
+  // сотрудников. Цель — чтобы из одного файла можно было полностью
+  // восстановить базу, если что-то пойдёт не так.
+  DEPARTMENTS.forEach(d => ensureDeptShape(d.id));
+
+  const backup = {
+    formatVersion: BACKUP_FORMAT_VERSION,
+    createdAt: new Date().toISOString(),
+    createdBy: currentUser ? currentUser.login : 'unknown',
+    departments: DB,
+    users: USERS
+  };
+
+  const json = JSON.stringify(backup, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const dateStr = new Date().toISOString().slice(0,19).replace(/[:T]/g, '-');
+  a.href = url;
+  a.download = `ya-prikroyu-backup-${dateStr}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  const now = new Date().toLocaleString('ru-RU');
+  localStorage.setItem(LAST_BACKUP_KEY, now);
+  document.getElementById('lastBackupInfo').textContent = `Последняя копия скачана: ${now}`;
+  showToast('✅ Резервная копия сохранена на устройство', 'success', 3000);
+}
+
+document.getElementById('downloadBackupBtn').onclick = downloadBackup;
+
+function updateLastBackupInfo(){
+  const last = localStorage.getItem(LAST_BACKUP_KEY);
+  document.getElementById('lastBackupInfo').textContent = last ? `Последняя копия скачана: ${last}` : 'Резервная копия ещё не создавалась';
+}
+
+let pendingRestoreData = null;
+
+document.getElementById('restoreBackupBtn').onclick = () => {
+  document.getElementById('restoreFileInput').click();
+};
+
+document.getElementById('restoreFileInput').onchange = async (e) => {
+  const file = e.target.files[0];
+  e.target.value = ''; // чтобы можно было выбрать тот же файл повторно при необходимости
+  if(!file) return;
+
+  try{
+    const text = await file.text();
+    const data = JSON.parse(text);
+
+    // Проверяем, что это действительно файл резервной копии этого приложения,
+    // а не случайно выбранный посторонний JSON.
+    if(!data || typeof data !== 'object' || !data.departments || !Array.isArray(data.users)){
+      alert('Это не похоже на файл резервной копии «Я прикрою!». Проверьте, что выбрали правильный файл.');
+      return;
+    }
+
+    pendingRestoreData = data;
+    const deptCount = Object.keys(data.departments).length;
+    let productCount = 0;
+    Object.values(data.departments).forEach(d => {
+      if(Array.isArray(d?.products)) productCount += d.products.length;
+      else if(Array.isArray(d)) productCount += d.length; // на случай очень старого формата внутри самого бэкапа
+    });
+
+    document.getElementById('restoreConfirmText').innerHTML =
+      `Файл от <b>${data.createdAt ? new Date(data.createdAt).toLocaleString('ru-RU') : 'неизвестной даты'}</b>.<br>` +
+      `В нём: ${deptCount} отдел(ов), ${productCount} товар(ов), ${data.users.length} сотрудник(ов).<br><br>` +
+      `<b style="color:var(--red)">Это заменит ВСЕ текущие данные в общей базе на данные из этого файла.</b> Действие нельзя отменить.`;
+    document.getElementById('restoreConfirmModalOverlay').classList.add('show');
+  }catch(err){
+    console.error('[Я прикрою] Ошибка чтения файла резервной копии:', err.message);
+    alert('Не удалось прочитать файл. Убедитесь, что это файл резервной копии (.json), скачанный из этого же приложения.');
+  }
+};
+
+document.getElementById('restoreCancelBtn').onclick = () => {
+  pendingRestoreData = null;
+  document.getElementById('restoreConfirmModalOverlay').classList.remove('show');
+};
+
+document.getElementById('restoreConfirmBtn').onclick = async () => {
+  if(!pendingRestoreData) return;
+  const btn = document.getElementById('restoreConfirmBtn');
+  btn.disabled = true;
+  btn.textContent = 'Восстанавливаю...';
+
+  try{
+    // Приводим каждый отдел из файла к актуальному формату (на случай если
+    // бэкап делался ещё со старой версией структуры данных).
+    const restoredDB = {};
+    DEPARTMENTS.forEach(d => {
+      const value = pendingRestoreData.departments[d.id];
+      if(Array.isArray(value)){
+        restoredDB[d.id] = { products: value, history: [] };
+      } else if(value && typeof value === 'object'){
+        restoredDB[d.id] = {
+          products: Array.isArray(value.products) ? value.products : [],
+          history: Array.isArray(value.history) ? value.history : []
+        };
+      } else {
+        restoredDB[d.id] = { products: [], history: [] };
+      }
+    });
+
+    DB = restoredDB;
+    USERS = Array.isArray(pendingRestoreData.users) ? pendingRestoreData.users : [];
+    saveLocalDB();
+    saveLocalUsers();
+
+    // Отправляем восстановленные данные в облако — по каждому отделу
+    // отдельно, плюс список пользователей, чтобы все устройства получили
+    // восстановленную базу при следующей синхронизации.
+    if(CLOUD_ENABLED){
+      for(const d of DEPARTMENTS){
+        pendingWriteUntil[d.id] = Date.now() + 5000;
+        await pushDeptToCloud(d.id);
+      }
+      await pushUsersToCloud();
+    }
+
+    showToast('✅ База восстановлена из файла', 'success', 4000);
+    pendingRestoreData = null;
+    document.getElementById('restoreConfirmModalOverlay').classList.remove('show');
+    document.getElementById('adminModalOverlay').classList.remove('show');
+
+    // Обновляем экран, если пользователь сейчас смотрит на список товаров
+    if(currentDept){
+      renderGrid();
+      renderTabs();
+      renderAlertBanner();
+    }
+  }catch(err){
+    console.error('[Я прикрою] Ошибка восстановления из файла:', err.message);
+    alert('Не удалось восстановить данные: ' + err.message);
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Да, заменить всё';
+};
+
+/* ---------------- PWA: УСТАНОВКА ПРИЛОЖЕНИЯ ---------------- */
+let deferredInstallPrompt = null;
+const installBtn = document.getElementById('installBtn');
+const iosInstallBar = document.getElementById('iosInstallBar');
+
+// Android / Desktop Chrome и большинство Chromium-браузеров (включая Яндекс.Браузер):
+// браузер сам сообщает, когда установку можно предложить.
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  installBtn.style.display = 'flex';
+});
+
+installBtn.onclick = async () => {
+  if(!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  const choice = await deferredInstallPrompt.userChoice;
+  if(choice.outcome === 'accepted'){
+    installBtn.style.display = 'none';
+  }
+  deferredInstallPrompt = null;
+};
+
+window.addEventListener('appinstalled', () => {
+  installBtn.style.display = 'none';
+  deferredInstallPrompt = null;
+});
+
+// iOS Safari не поддерживает beforeinstallprompt — показываем подсказку,
+// как установить руками через "Поделиться".
+function checkIosInstallHint(){
+  const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone = window.navigator.standalone === true ||
+    window.matchMedia('(display-mode: standalone)').matches;
+  if(isIos && !isStandalone){
+    iosInstallBar.classList.add('show');
+  }
+}
+checkIosInstallHint();
+
+// Регистрация service worker — нужна, чтобы браузер засчитал сайт как
+// "устанавливаемое приложение" (PWA-критерии) и для офлайн-доступа к
+// уже открытой странице.
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch((err) => {
+      console.log('[Я прикрою] Service worker не зарегистрирован (это не критично):', err.message);
+    });
+  });
+}
+
+/* ---------------- INIT ---------------- */
+async function init(){
+  bindDateInputs(document.getElementById('f_date_text'), document.getElementById('f_date'));
+  bindDateInputs(document.getElementById('f_scan_date_text'), document.getElementById('f_scan_date'));
+
+  // Если облако подключено — сначала подтягиваем актуальные данные оттуда,
+  // и только потом проверяем локальные. Это важно: если делать наоборот,
+  // можно случайно затереть общую базу пустыми локальными данными.
+  if(CLOUD_ENABLED){
+    await pullFromCloud();
+    await pullUsersFromCloud();
+  }
+  DEPARTMENTS.forEach(d => ensureDeptShape(d.id));
+  saveLocalDB(); // только локальный кэш, не отправляем лишний раз в облако при простом старте
+
+  const savedUserRaw = localStorage.getItem(SESSION_USER_KEY);
+  if(savedUserRaw){
+    try{
+      const savedUser = JSON.parse(savedUserRaw);
+      // Сессия уже была подтверждена паролем при входе — здесь просто
+      // проверяем, что пользователь не удалён и подтягиваем его актуальные
+      // отделы (админ мог их поменять с другого устройства).
+      if(savedUser.role === 'admin'){
+        currentUser = { login: ROOT_ADMIN.login, name: ROOT_ADMIN.name, role: 'admin', departments: DEPARTMENTS.map(d => d.id) };
+      } else {
+        const stillExists = USERS.find(u => u.login === savedUser.login);
+        if(stillExists){
+          currentUser = { login: stillExists.login, name: stillExists.name, role: 'staff', departments: stillExists.departments || [] };
+        }
+      }
+      if(currentUser){
+        lockOverlay.style.display = 'none';
+        enterApp();
+      } else {
+        localStorage.removeItem(SESSION_USER_KEY);
+        renderLock();
+      }
+    }catch(e){
+      renderLock();
+    }
+  } else {
+    renderLock();
+  }
+}
+init();
+</script>
+
+</body>
+</html>
