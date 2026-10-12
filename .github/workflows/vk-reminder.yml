@@ -1,0 +1,20 @@
+name: Напоминание во ВКонтакте
+
+on:
+  schedule:
+    - cron: '52 4 * * *'   # каждый день в 08:52 по Самаре (04:52 UTC)
+  workflow_dispatch: {}     # кнопка «Run workflow» для ручной проверки
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Отправить сводку
+        env:
+          VK_TOKEN: ${{ secrets.VK_TOKEN }}
+        run: node reminder/vk-reminder.mjs
