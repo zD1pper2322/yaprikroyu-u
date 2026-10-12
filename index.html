@@ -827,6 +827,8 @@
     background:var(--amber-dim);
   }
   .dept-checkbox-row input{ width:18px; height:18px; flex-shrink:0; accent-color:var(--amber); }
+  .field label.dept-checkbox-row{ display:flex; margin-bottom:0; text-transform:none; letter-spacing:0; }
+  .field .dept-checkbox-row input{ width:18px; padding:0; }
   .dept-checkbox-row span{ font-size:13.5px; font-weight:600; color:var(--bg-deep); }
 
   /* ---------- DIAGNOSTICS ---------- */
@@ -941,6 +943,15 @@
   }
   .lock-box h2{font-family:'Archivo Black',sans-serif; font-size:18px; margin:0 0 6px;}
   .lock-box p{color:var(--text-dim); font-size:12.5px; margin:0 0 20px;}
+  .lock-request-link{margin-top:16px; background:none; border:none; color:var(--amber); font-family:'Inter',sans-serif; font-size:13px; font-weight:600; cursor:pointer; text-decoration:underline; text-underline-offset:3px;}
+  .req-row{background:#fff7e8; border:1px solid #e8a23d55; border-radius:12px; padding:10px 12px; display:flex; flex-direction:column; gap:4px;}
+  .req-row .req-name{font-weight:700; font-size:13.5px; color:var(--bg-deep);}
+  .req-row .req-meta{font-size:12px; color:#6a6a6a; overflow-wrap:anywhere;}
+  .req-row .req-actions{display:flex; gap:8px; margin-top:6px;}
+  .req-row .req-actions button{flex:1; border:none; border-radius:8px; padding:9px; font-weight:700; font-size:12.5px; cursor:pointer;}
+  .req-ok{background:var(--amber); color:var(--bg-deep);}
+  .req-no{background:#00000010; color:#a33;}
+  .admin-badge{position:absolute; top:-5px; right:-5px; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:var(--red); color:#fff; font-size:11px; font-weight:800; line-height:18px; text-align:center;}
 
   .login-field{ margin-bottom:12px; text-align:left; }
   .login-field input{
@@ -1018,6 +1029,34 @@
       <input type="password" id="passwordInput" placeholder="Пароль" autocomplete="current-password">
     </div>
     <button class="modal-submit" id="loginSubmitBtn" style="background:var(--amber); color:var(--bg-deep);">Войти</button>
+    <button type="button" class="lock-request-link" id="openAccessRequestBtn">Нет доступа? Запросить у администратора</button>
+  </div>
+</div>
+
+<!-- ============ ЗАПРОС ДОСТУПА (до входа) ============ -->
+<div class="modal-overlay" id="accessRequestOverlay" style="z-index:300;">
+  <div class="modal">
+    <button class="modal-close" id="closeAccessRequest">✕</button>
+    <h2>Запрос доступа</h2>
+    <p class="sub">Администратор получит запрос и выдаст вам логин и пароль</p>
+    <div class="field">
+      <label>Ваше имя</label>
+      <input type="text" id="req_name" placeholder="Например: Анна Петрова" maxlength="60" autocomplete="name">
+    </div>
+    <div class="field">
+      <label>Какие отделы нужны</label>
+      <div class="dept-checkbox-list" id="reqDeptList"></div>
+    </div>
+    <div class="field">
+      <label>Как с вами связаться</label>
+      <input type="text" id="req_contact" placeholder="Телефон или ссылка на ВК" maxlength="80">
+    </div>
+    <div class="field">
+      <label>Комментарий (необязательно)</label>
+      <input type="text" id="req_comment" placeholder="Например: новый сотрудник, смена Б" maxlength="120">
+    </div>
+    <p class="admin-backup-meta" id="reqMsg" style="text-align:left; margin:0 0 10px;"></p>
+    <button class="modal-submit" id="sendAccessRequestBtn" style="background:var(--amber); color:var(--bg-deep);">Отправить запрос</button>
   </div>
 </div>
 
@@ -1032,7 +1071,7 @@
   </div>
   <div class="header-actions">
     <span class="cloud-dot none" id="cloudStatusDot" title="Нажмите для диагностики связи" style="cursor:pointer;"></span>
-    <button class="icon-btn" id="adminBtn" title="Управление сотрудниками" style="display:none;">👤</button>
+    <button class="icon-btn" id="adminBtn" title="Управление сотрудниками" style="display:none; position:relative;">👤<span class="admin-badge" id="adminBadge" hidden></span></button>
     <button class="icon-btn" id="statsBtn" title="Статистика">📊</button>
     <button class="icon-btn" id="historyBtn" title="История действий">🕘</button>
     <button class="icon-btn" id="exportBtn" title="Экспорт в CSV">⬇️</button>
@@ -1186,6 +1225,10 @@
     <button class="modal-close" id="closeAdminModal">✕</button>
     <h2>Сотрудники и доступ</h2>
     <p class="sub">Создавайте логины для сотрудников и назначайте им отделы</p>
+    <div id="accessRequestsBox" hidden style="margin-bottom:16px;">
+      <h4 style="font-size:13px; text-transform:uppercase; letter-spacing:.4px; color:#a33; margin:0 0 8px;">Запросы доступа</h4>
+      <div id="accessRequestsList" style="display:flex; flex-direction:column; gap:8px;"></div>
+    </div>
     <button class="modal-submit" id="addUserBtn" style="background:var(--amber); color:var(--bg-deep); margin-bottom:16px;">+ Новый сотрудник</button>
     <div class="admin-user-list" id="adminUserList"></div>
 
@@ -1856,7 +1899,9 @@ function startCloudSync(){
   pullFromCloud(); // сразу при входе подтягиваем последние данные
   pullUsersFromCloud();
   if(cloudPollTimer) clearInterval(cloudPollTimer);
+  pullAccessRequests();
   cloudPollTimer = setInterval(() => {
+    pullAccessRequests();
     pullCatalogFromCloud();
     pullFromCloud();
     pullUsersFromCloud();
@@ -3201,7 +3246,7 @@ function openUserEditModal(user){
   document.getElementById('userEditModalOverlay').classList.add('show');
 }
 
-document.getElementById('addUserBtn').onclick = () => openUserEditModal(null);
+document.getElementById('addUserBtn').onclick = () => { fromRequestId = null; openUserEditModal(null); };
 document.getElementById('closeUserEditModal').onclick = () => {
   document.getElementById('userEditModalOverlay').classList.remove('show');
 };
@@ -3250,7 +3295,120 @@ document.getElementById('saveUserBtn').onclick = async () => {
 
   document.getElementById('userEditModalOverlay').classList.remove('show');
   renderAdminUserList();
+  if(fromRequestId && !editingUserId){
+    await deleteAccessRequest(fromRequestId);
+    showToast('✅ Сотрудник создан. Передайте ему логин и пароль по указанному контакту', 'success', 5000);
+  }
+  fromRequestId = null;
 };
+
+/* ---------------- ЗАПРОСЫ ДОСТУПА ----------------
+   Человек без логина оставляет запрос на экране входа. Запрос попадает
+   в общую базу (/requests). Админ видит его в 👤 и может сразу создать
+   сотрудника. Уведомление админу во ВКонтакте отправляет GitHub
+   (reminder/access-requests.mjs). */
+const REQ_SENT_KEY = 'ya_prikroyu_req_sent_v1';
+let ACCESS_REQUESTS = []; // [{id, name, depts:[], contact, comment, ts}]
+let fromRequestId = null; // запрос, из которого сейчас создаётся сотрудник
+
+function openAccessRequest(){
+  const list = document.getElementById('reqDeptList');
+  list.innerHTML = '';
+  DEPARTMENTS.forEach(d => {
+    const row = document.createElement('label');
+    row.className = 'dept-checkbox-row';
+    row.innerHTML = `<input type="checkbox" value="${d.id}"><span>${escapeHtml(d.name)}</span>`;
+    row.querySelector('input').addEventListener('change', e => row.classList.toggle('checked', e.target.checked));
+    list.appendChild(row);
+  });
+  document.getElementById('reqMsg').textContent = '';
+  document.getElementById('accessRequestOverlay').classList.add('show');
+  setTimeout(() => document.getElementById('req_name').focus(), 50);
+}
+document.getElementById('openAccessRequestBtn').onclick = openAccessRequest;
+document.getElementById('closeAccessRequest').onclick = () => document.getElementById('accessRequestOverlay').classList.remove('show');
+document.getElementById('accessRequestOverlay').onclick = e => { if(e.target.id === 'accessRequestOverlay') e.currentTarget.classList.remove('show'); };
+
+document.getElementById('sendAccessRequestBtn').onclick = async () => {
+  const msg = document.getElementById('reqMsg');
+  const name = document.getElementById('req_name').value.trim();
+  const contact = document.getElementById('req_contact').value.trim();
+  const comment = document.getElementById('req_comment').value.trim();
+  const depts = [...document.querySelectorAll('#reqDeptList input:checked')].map(el => el.value);
+  if(!name){ msg.textContent = 'Укажите имя.'; return; }
+  if(!contact){ msg.textContent = 'Укажите, как с вами связаться, чтобы администратор мог передать пароль.'; return; }
+  try{
+    const last = Number(localStorage.getItem(REQ_SENT_KEY) || 0);
+    if(Date.now() - last < 10 * 60000){ msg.textContent = 'Запрос уже отправлен. Повторно можно через 10 минут.'; return; }
+  }catch(e){}
+  if(!CLOUD_ENABLED){ msg.textContent = 'Запросы не настроены: нет общей базы. Обратитесь к администратору лично.'; return; }
+  const btn = document.getElementById('sendAccessRequestBtn');
+  btn.disabled = true; btn.textContent = 'Отправляю...';
+  try{
+    const res = await fetch(`${FIREBASE_DB_URL}/requests.json`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ name, depts, contact, comment, ts: Date.now(), notified: false })
+    });
+    if(!res.ok) throw new Error(String(res.status));
+    try{ localStorage.setItem(REQ_SENT_KEY, String(Date.now())); }catch(e){}
+    msg.textContent = '';
+    document.getElementById('accessRequestOverlay').classList.remove('show');
+    ['req_name','req_contact','req_comment'].forEach(id => document.getElementById(id).value = '');
+    lockError.textContent = '✅ Запрос отправлен. Администратор свяжется с вами.';
+  }catch(e){
+    msg.textContent = 'Не удалось отправить: нет связи с общей базой. Попробуйте позже.';
+  }
+  btn.disabled = false; btn.textContent = 'Отправить запрос';
+};
+
+async function pullAccessRequests(){
+  if(!CLOUD_ENABLED || !currentUser || currentUser.role !== 'admin') return;
+  try{
+    const res = await fetch(`${FIREBASE_DB_URL}/requests.json?_=${Date.now()}`, { cache:'no-store' });
+    if(!res.ok) return;
+    const raw = (await res.json()) || {};
+    ACCESS_REQUESTS = Object.entries(raw)
+      .filter(([, r]) => r && typeof r === 'object' && r.name)
+      .map(([id, r]) => ({ id, name:String(r.name).slice(0,60), depts: asList(r.depts).map(String), contact:String(r.contact || '').slice(0,80), comment:String(r.comment || '').slice(0,120), ts:Number(r.ts) || 0 }))
+      .sort((a,b) => b.ts - a.ts);
+    renderAccessRequests();
+  }catch(e){}
+}
+function renderAccessRequests(){
+  const badge = document.getElementById('adminBadge');
+  badge.hidden = !ACCESS_REQUESTS.length;
+  badge.textContent = ACCESS_REQUESTS.length;
+  const box = document.getElementById('accessRequestsBox');
+  const list = document.getElementById('accessRequestsList');
+  box.hidden = !ACCESS_REQUESTS.length;
+  list.innerHTML = '';
+  ACCESS_REQUESTS.forEach(r => {
+    const deptNames = r.depts.map(id => DEPARTMENTS.find(d => d.id === id)?.name).filter(Boolean).join(', ') || 'отдел не указан';
+    const when = r.ts ? new Date(r.ts).toLocaleString('ru-RU', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
+    const row = document.createElement('div'); row.className = 'req-row';
+    row.innerHTML = `<div class="req-name"></div><div class="req-meta"></div><div class="req-meta"></div><div class="req-actions"><button class="req-ok">Создать сотрудника</button><button class="req-no">Отклонить</button></div>`;
+    row.querySelector('.req-name').textContent = r.name;
+    const metas = row.querySelectorAll('.req-meta');
+    metas[0].textContent = `${deptNames} · ${when}`;
+    metas[1].textContent = `Связь: ${r.contact}${r.comment ? ' · ' + r.comment : ''}`;
+    row.querySelector('.req-ok').onclick = () => {
+      fromRequestId = r.id;
+      openUserEditModal(null);
+      document.getElementById('f_user_name').value = r.name;
+      renderDeptCheckboxes(r.depts.filter(id => DEPARTMENTS.some(d => d.id === id)));
+    };
+    row.querySelector('.req-no').onclick = async () => {
+      if(!confirm(`Отклонить запрос от «${r.name}»?`)) return;
+      await deleteAccessRequest(r.id);
+    };
+    list.appendChild(row);
+  });
+}
+async function deleteAccessRequest(id){
+  ACCESS_REQUESTS = ACCESS_REQUESTS.filter(x => x.id !== id);
+  renderAccessRequests();
+  try{ await fetch(`${FIREBASE_DB_URL}/requests/${encodeURIComponent(id)}.json`, { method:'DELETE' }); }catch(e){}
+}
 
 /* ---------------- СТАТИСТИКА ---------------- */
 let statsPeriodDays = 7;

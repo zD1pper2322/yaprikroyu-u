@@ -1,0 +1,24 @@
+name: Запросы доступа во ВКонтакте
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'   # каждые 10 минут (GitHub может запускать с опозданием)
+  workflow_dispatch: {}
+
+concurrency:
+  group: access-requests
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Отправить новые запросы
+        env:
+          VK_TOKEN: ${{ secrets.VK_TOKEN }}
+        run: node reminder/access-requests.mjs

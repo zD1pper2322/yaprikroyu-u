@@ -3,7 +3,7 @@
 // сообщества ВК всем, кто написал сообществу хотя бы одно сообщение.
 // Ключ сообщества хранится в секрете GitHub VK_TOKEN, в коде его нет.
 
-const FIREBASE_DB_URL = 'https://ya-prikroyu-default-rtdb.europe-west1.firebasedatabase.app';
+import { FIREBASE_DB_URL, recipients, sendAll, fail } from './vk-common.mjs';
 const DEFAULT_DEPARTMENTS = {
   drinks: 'Напитки', grocery: 'Бакалея', sof: 'СОФ',
   gastro1: 'Гастроном 1', gastro2: 'Гастроном 2', sweets: 'Кондитерские изделия',
@@ -11,8 +11,6 @@ const DEFAULT_DEPARTMENTS = {
 const SOON_DAYS = 3;   // «горит»: осталось 0–3 дня
 const WEEK_DAYS = 7;   // «на неделе»: 4–7 дней
 const TZ_OFFSET_MIN = 4 * 60; // Самара, UTC+4
-const VK_V = '5.199';
-const token = process.env.VK_TOKEN;
 const dryRun = process.env.DRY_RUN === '1';
 
 function todayLocal() {
@@ -60,25 +58,6 @@ export function buildMessage(departments, today = todayLocal(), names = DEFAULT_
   return `${head}\nТребуют внимания: ${total} ${plural(total, 'позиция', 'позиции', 'позиций')}\n\n${blocks.join('\n\n')}`;
 }
 
-async function vk(method, params) {
-  const body = new URLSearchParams({ ...params, access_token: token, v: VK_V });
-  let res;
-  try { res = await fetch(`https://api.vk.com/method/${method}`, { method: 'POST', body }); }
-  catch (e) { throw new Error(`Нет связи с ВКонтакте: ${e.message}`); }
-  const json = await res.json();
-  if (json.error) throw new Error(`VK ${method}: ${json.error.error_code} ${json.error.error_msg}`);
-  return json.response;
-}
-
-function chunks(text, max = 3900) {
-  const out = []; let cur = '';
-  for (const l of text.split('\n')) {
-    if ((cur + '\n' + l).length > max) { out.push(cur); cur = l; } else cur = cur ? cur + '\n' + l : l;
-  }
-  if (cur) out.push(cur);
-  return out;
-}
-
 async function main() {
   let res;
   try { res = await fetch(`${FIREBASE_DB_URL}/departments.json`); }
@@ -95,23 +74,11 @@ async function main() {
   const message = buildMessage(await res.json(), todayLocal(), names);
   console.log(message);
   if (dryRun) return;
-  if (!token) throw new Error('Нет секрета VK_TOKEN: добавьте ключ сообщества в Settings → Secrets and variables → Actions.');
-
-  const conv = await vk('messages.getConversations', { count: 200, filter: 'all' });
-  const peers = conv.items.map(i => i.conversation.peer).filter(p => p.type === 'user').map(p => p.id);
-  if (!peers.length) throw new Error('Сообществу ещё никто не писал. Напишите сообществу любое сообщение со своей страницы ВК.');
-  for (const peer of peers) {
-    for (const part of chunks(message)) {
-      await vk('messages.send', { peer_id: peer, message: part, random_id: Math.floor(Math.random() * 2 ** 31) });
-    }
-    console.log('Отправлено:', peer);
-  }
+  const peers = await recipients();
+  await sendAll(peers, message);
+  console.log('Отправлено:', peers.length);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch(e => {
-    // ::error:: показывает причину прямо на странице запуска в GitHub
-    console.log(`::error title=Напоминание не отправлено::${String(e.message).replace(/\n/g, ' ')}`);
-    process.exit(1);
-  });
+  main().catch(fail);
 }
