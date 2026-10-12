@@ -4,7 +4,7 @@
 // в localStorage на устройстве, так что список товаров доступен
 // даже без интернета — нужно лишь чтобы саму страницу отдало из кэша).
 
-const CACHE_NAME = 'ya-prikroyu-v1';
+const CACHE_NAME = 'ya-prikroyu-v2';
 const FILES_TO_CACHE = [
   './index.html',
   './manifest.json'

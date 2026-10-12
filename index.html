@@ -291,6 +291,15 @@
     border:1px solid transparent;
   }
   .chip.active{background:var(--bg-deep); color:var(--paper);}
+  .filter-row{margin-top:-10px;}
+  .filter-row:empty{display:none;}
+  .filter-row .chip b{font-family:'JetBrains Mono',monospace; font-weight:600; opacity:.6; margin-left:4px;}
+  .filter-row .chip.active{background:var(--amber); color:var(--bg-deep);}
+  .filter-row .chip.active b{opacity:.8;}
+  .filter-label{font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#7a7a7a; align-self:center; padding-right:2px;}
+  .card-tags{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;}
+  .card-tag{font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px; background:#00000010; color:#3a3a3a;}
+  .card-tag.sub{background:var(--amber-dim); color:#8a5a12;}
 
   /* ---------- EMPTY STATE ---------- */
   .empty-state{
@@ -1046,6 +1055,8 @@
       <div class="chip" data-sort="name">А-Я</div>
       <div class="chip" data-sort="new">Сначала новые</div>
     </div>
+    <div class="sort-row filter-row" id="subRow"></div>
+    <div class="sort-row filter-row" id="placeRow"></div>
     <div class="grid" id="grid"></div>
     <div class="empty-state" id="emptyState" style="display:none;">
       <span class="icon">📦</span>
@@ -1077,6 +1088,16 @@
       <div class="field">
         <label>Кол-во</label>
         <input type="number" id="f_qty" placeholder="1" min="0">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field" id="f_sub_field">
+        <label>Подкатегория</label>
+        <select id="f_sub"></select>
+      </div>
+      <div class="field">
+        <label>Место выкладки</label>
+        <select id="f_place"></select>
       </div>
     </div>
     <div class="field">
@@ -1129,6 +1150,16 @@
     <div class="field" id="scanNameField" style="display:none;">
       <label>Название товара</label>
       <input type="text" id="f_scan_name" placeholder="Например: Сыр Российский 200г">
+      <div class="field-row" style="margin-top:14px;">
+        <div class="field" id="f_scan_sub_field">
+          <label>Подкатегория</label>
+          <select id="f_scan_sub"></select>
+        </div>
+        <div class="field">
+          <label>Место выкладки</label>
+          <select id="f_scan_place"></select>
+        </div>
+      </div>
     </div>
     <button class="modal-submit" id="scanSaveBtn" style="display:none;">Добавить в список</button>
     <p class="scan-fallback">Камера не работает? <a id="manualFromScan">Ввести вручную</a></p>
@@ -1311,6 +1342,15 @@ const DEPARTMENTS = [
   { id:'gastro2', name:'Гастроном 2',               icon:'Г2' },
   { id:'sweets',  name:'Кондитерские изделия',      icon:'К' },
 ];
+
+// Подкатегории внутри отделов. Новые добавляются сюда: { id_отдела: [список] }.
+const SUBCATS = {
+  drinks: ['Пиво ПЭТ', 'Пиво Импорт', 'Пиво Мир', 'Пиво Вкус', 'Пиво России'],
+};
+// Место выкладки — одинаковое для всех отделов.
+const PLACES = ['Полка', 'Кросс', 'ХО'];
+let currentSub = '';   // фильтр по подкатегории ('' = все)
+let currentPlace = ''; // фильтр по месту выкладки ('' = все)
 
 const WARN_DAYS = 14; // уведомлять за 2 недели
 const STORAGE_KEY = 'ya_prikroyu_data_v1';
@@ -1540,6 +1580,7 @@ async function pullFromCloud(){
     showCloudStatus('offline');
   }
   cloudSyncing = false;
+  maybeSeedBeer(); // перенос пива — после первой синхронизации (или без связи — локально)
 }
 
 let usersSyncing = false;
@@ -1607,6 +1648,54 @@ function showCloudStatus(status){
   const dot = document.getElementById('cloudStatusDot');
   if(!dot) return;
   dot.className = 'cloud-dot ' + status;
+}
+
+
+/* ---------------- ПЕРЕНОС ВНЕСЁННОГО ПИВА (один раз) ----------------
+   29 позиций, внесённых 12.10.2026 во временное приложение, добавляются
+   в отдел «Напитки». Срабатывает один раз; повторно уже перенесённые
+   позиции не добавляются (сверка по id). В общей базе ставится отметка,
+   чтобы другие устройства не добавили их ещё раз. */
+const SEED_FLAG_KEY = 'ya_prikroyu_seed_beer_v1';
+const SEED_BEER = [{"id": "p_seed_mv53jqja3m5si", "name": "Gold MINE BEER", "code": "", "qty": 0, "date": "2027-01-05", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791800153109}, {"id": "p_seed_mv53k3gexog2n", "name": "Жигулёвское 1,5", "code": "", "qty": 0, "date": "2026-11-28", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791800169854}, {"id": "p_seed_mv53kr3s03bm0", "name": "Балтика 7", "code": "", "qty": 0, "date": "2027-02-24", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791800200504}, {"id": "p_seed_mv53lkde4kw31", "name": "Пшеничка", "code": "", "qty": 0, "date": "2026-12-24", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791800238434}, {"id": "p_seed_mv54j08qkh7jq", "name": "Белый медведь 8%", "code": "", "qty": 0, "date": "2027-02-05", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791801798648}, {"id": "p_seed_mv54ni59j3qvh", "name": "Белый медведь 5%", "code": "", "qty": 0, "date": "2027-01-22", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791802008477}, {"id": "p_seed_mv54ofpq9h0s7", "name": "Жигулёвское спец 1,2л", "code": "", "qty": 0, "date": "2027-02-28", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791802051981}, {"id": "p_seed_mv54ou2vd7ecb", "name": "Brario", "code": "", "qty": 0, "date": "2026-10-21", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791802070598}, {"id": "p_seed_mv54s4firfb17", "name": "Zatecky gus nefiltrov", "code": "", "qty": 0, "date": "2027-01-06", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791802223982}, {"id": "p_seed_mv54uiitbcrfu", "name": "Варим сусло", "code": "", "qty": 0, "date": "2026-12-18", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791802335557}, {"id": "p_seed_mv54vc8qtwrm2", "name": "Дуб и обруч", "code": "", "qty": 0, "date": "2026-11-22", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791802374074}, {"id": "p_seed_mv54x24hbhgtj", "name": "Кулер", "code": "", "qty": 0, "date": "2027-01-15", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791802454272}, {"id": "p_seed_mv550djkwhau8", "name": "Гёссер", "code": "", "qty": 0, "date": "2027-01-05", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791802609040}, {"id": "p_seed_mv551jh5wgbas", "name": "Zatecky Gus svetly", "code": "", "qty": 0, "date": "2027-02-22", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791802663385}, {"id": "p_seed_mv553bwyny6af", "name": "Балтика 9", "code": "", "qty": 0, "date": "2026-11-30", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791802746898}, {"id": "p_seed_mv555nvpvkn1s", "name": "Охота", "code": "", "qty": 0, "date": "2027-01-17", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791802855717}, {"id": "p_seed_mv557ppw1k63q", "name": "Lowenbrau orig", "code": "", "qty": 0, "date": "2027-02-23", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791802951411}, {"id": "p_seed_mv558m65vidi2", "name": "Lowenbrau 8%", "code": "", "qty": 0, "date": "2026-12-15", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791802993469}, {"id": "p_seed_mv55at0plimbm", "name": "Бочкарев холод и солод", "code": "", "qty": 0, "date": "2026-11-17", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791803095653}, {"id": "p_seed_mv55bx7rpczf2", "name": "Бочкарев гриль", "code": "", "qty": 0, "date": "2026-10-20", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791803147750}, {"id": "p_seed_mv55c7xhwsrz4", "name": "Бочкарёв живой", "code": "", "qty": 0, "date": "2026-10-22", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791803161636}, {"id": "p_seed_mv55ebycic9xi", "name": "Бочкарев белый колос", "code": "", "qty": 0, "date": "2026-11-21", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791803260162}, {"id": "p_seed_mv55fyh67bjfw", "name": "Старый мельник", "code": "", "qty": 0, "date": "2026-11-13", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791803336010}, {"id": "p_seed_mv55vocu2tw80", "name": "Мельница на реке", "code": "", "qty": 0, "date": "2026-11-13", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791804069388}, {"id": "p_seed_mv55w3ja07llj", "name": "Дон мягкое", "code": "", "qty": 0, "date": "2027-02-18", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791804089062}, {"id": "p_seed_mv55wi0fqta3v", "name": "Дон южный рецепт", "code": "", "qty": 0, "date": "2026-12-26", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791804107823}, {"id": "p_seed_mv55wv1e1nfhq", "name": "Грин бит", "code": "", "qty": 0, "date": "2027-02-05", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791804124706}, {"id": "p_seed_mv55x9zbucz8i", "name": "Хелен хофф", "code": "", "qty": 0, "date": "2026-12-21", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791804144071}, {"id": "p_seed_mv55xlzs84th0", "name": "Жигуль экспорт", "code": "", "qty": 0, "date": "2026-12-24", "sub": "Пиво ПЭТ", "place": "Полка", "photo": null, "onPromo": false, "createdAt": 1791804159639}];
+let seedRunning = false;
+async function maybeSeedBeer(){
+  if(seedRunning) return;
+  try{ if(localStorage.getItem(SEED_FLAG_KEY)) return; }catch(e){ return; }
+  if(!currentUser || !currentUser.departments.includes('drinks')) return;
+  seedRunning = true;
+  try{
+    if(CLOUD_ENABLED){
+      try{
+        const r = await fetch(`${FIREBASE_DB_URL}/meta/seedBeerV1.json?_=${Date.now()}`, { cache:'no-store' });
+        if(r.ok && (await r.json()) === true){ localStorage.setItem(SEED_FLAG_KEY, '1'); return; }
+      }catch(e){ /* нет связи — перенесём локально, отметку поставим позже */ }
+    }
+    ensureDeptShape('drinks');
+    const have = new Set(DB.drinks.products.map(p => p.id));
+    const fresh = SEED_BEER.filter(p => !have.has(p.id)).map(p => ({ ...p }));
+    if(fresh.length){
+      DB.drinks.products.push(...fresh);
+      logHistory('drinks', 'add', `Перенос списка пива: ${fresh.length} поз.`);
+    }
+    saveLocalDB();
+    if(CLOUD_ENABLED){
+      pendingWriteUntil.drinks = Date.now() + WRITE_PROTECTION_MS;
+      const res = await fetch(`${FIREBASE_DB_URL}/departments/drinks.json`, {
+        method:'PUT', headers:{'Content-Type':'application/json'}, cache:'no-store', body: JSON.stringify(DB.drinks)
+      });
+      if(res.ok){
+        await fetch(`${FIREBASE_DB_URL}/meta/seedBeerV1.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:'true' }).catch(()=>{});
+        localStorage.setItem(SEED_FLAG_KEY, '1');
+      }
+    } else {
+      localStorage.setItem(SEED_FLAG_KEY, '1');
+    }
+    if(fresh.length) showToast(`✅ Перенесено в «Напитки»: ${fresh.length} поз. пива`, 'success', 4000);
+    if(currentDept){ renderGrid(); renderTabs(); renderAlertBanner(); }
+  }catch(e){
+    console.error('[Я прикрою] Перенос списка пива не удался:', e.message);
+  }finally{ seedRunning = false; }
 }
 
 /* ---------------- ПАНЕЛЬ ВИДИМОЙ ДИАГНОСТИКИ ---------------- */
@@ -1802,6 +1891,7 @@ function renderTabs(){
     tab.onclick = () => {
       if(d.id === currentDept){ return; }
       currentDept = d.id;
+      currentSub = ''; currentPlace = '';
       renderTabs();
       renderGrid();
       renderAlertBanner();
@@ -1821,6 +1911,7 @@ function enterApp(){
   renderGrid();
   renderAlertBanner();
   startCloudSync();
+  if(!CLOUD_ENABLED) maybeSeedBeer();
 }
 
 function renderAlertBanner(){
@@ -1850,6 +1941,8 @@ function getSortedList(){
   let list = [...DB[currentDept].products];
   const q = document.getElementById('searchInput').value.trim().toLowerCase();
   if(q) list = list.filter(p => p.name.toLowerCase().includes(q));
+  if(currentSub) list = list.filter(p => (p.sub || '') === currentSub);
+  if(currentPlace) list = list.filter(p => (p.place || '') === currentPlace);
 
   if(currentSort === 'urgent'){
     list.sort((a,b) => daysUntil(a.date) - daysUntil(b.date));
@@ -1861,7 +1954,62 @@ function getSortedList(){
   return list;
 }
 
+/* ---------------- ФИЛЬТРЫ: ПОДКАТЕГОРИЯ И МЕСТО ВЫКЛАДКИ ---------------- */
+function filterChip(label, count, active, onClick){
+  const c = document.createElement('div');
+  c.className = 'chip' + (active ? ' active' : '');
+  c.textContent = label;
+  const b = document.createElement('b'); b.textContent = count; c.appendChild(b);
+  c.onclick = onClick;
+  return c;
+}
+function renderFilterRows(){
+  ensureDeptShape(currentDept);
+  const all = DB[currentDept].products;
+  const subRow = document.getElementById('subRow');
+  const placeRow = document.getElementById('placeRow');
+  subRow.innerHTML = ''; placeRow.innerHTML = '';
+  const subs = SUBCATS[currentDept] || [];
+  if(subs.length){
+    if(currentSub && !subs.includes(currentSub)) currentSub = '';
+    subRow.appendChild(filterChip('Все', all.length, !currentSub, () => { currentSub = ''; renderGrid(); }));
+    subs.forEach(s => subRow.appendChild(filterChip(s, all.filter(p => p.sub === s).length, currentSub === s, () => { currentSub = s; renderGrid(); })));
+  } else {
+    currentSub = '';
+  }
+  const pool = currentSub ? all.filter(p => p.sub === currentSub) : all;
+  const lbl = document.createElement('span'); lbl.className = 'filter-label'; lbl.textContent = 'Место:';
+  placeRow.appendChild(lbl);
+  placeRow.appendChild(filterChip('Везде', pool.length, !currentPlace, () => { currentPlace = ''; renderGrid(); }));
+  PLACES.forEach(pl => placeRow.appendChild(filterChip(pl, pool.filter(p => p.place === pl).length, currentPlace === pl, () => { currentPlace = pl; renderGrid(); })));
+}
+
+// Заполняет выпадающие списки подкатегории и места в формах.
+function fillSelect(sel, options, emptyLabel, value){
+  sel.innerHTML = '';
+  if(emptyLabel !== null){ const o = document.createElement('option'); o.value = ''; o.textContent = emptyLabel; sel.appendChild(o); }
+  options.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; sel.appendChild(o); });
+  if(value !== undefined && [...sel.options].some(o => o.value === value)) sel.value = value;
+}
+const LAST_SUB_KEY = 'ya_prikroyu_last_sub_v1';
+const LAST_PLACE_KEY = 'ya_prikroyu_last_place_v1';
+function lastPick(key){ try{ return localStorage.getItem(key) || ''; }catch(e){ return ''; } }
+function rememberPick(key, v){ try{ localStorage.setItem(key, v || ''); }catch(e){} }
+function prepareSubPlace(subSel, subField, placeSel, sub, place){
+  const subs = SUBCATS[currentDept] || [];
+  subField.style.display = subs.length ? '' : 'none';
+  fillSelect(subSel, subs, 'Без подкатегории', sub !== undefined ? sub : (currentSub || lastPick(LAST_SUB_KEY)));
+  fillSelect(placeSel, PLACES, null, place !== undefined ? place : (currentPlace || lastPick(LAST_PLACE_KEY) || PLACES[0]));
+}
+function readSubPlace(subSel, placeSel){
+  const sub = (SUBCATS[currentDept] || []).length ? subSel.value : '';
+  const place = placeSel.value;
+  rememberPick(LAST_SUB_KEY, sub); rememberPick(LAST_PLACE_KEY, place);
+  return { sub, place };
+}
+
 function renderGrid(){
+  renderFilterRows();
   const grid = document.getElementById('grid');
   const empty = document.getElementById('emptyState');
   const list = getSortedList();
@@ -1886,6 +2034,7 @@ function renderGrid(){
         <div>
           <p class="card-name">${escapeHtml(p.name)}</p>
           <p class="card-meta">${p.code ? 'код: '+escapeHtml(p.code) : 'без кода'} ${p.qty ? '· '+p.qty+' шт' : ''}</p>
+          ${(p.sub || p.place) ? `<div class="card-tags">${p.sub ? `<span class="card-tag sub">${escapeHtml(p.sub)}</span>` : ''}${p.place ? `<span class="card-tag">${escapeHtml(p.place)}</span>` : ''}</div>` : ''}
         </div>
         <div class="stamp ${status}">${statusLabel(days)}</div>
       </div>
@@ -1942,7 +2091,7 @@ async function handleCardAction(action, id){
 document.getElementById('sortRow').addEventListener('click', e => {
   const chip = e.target.closest('.chip');
   if(!chip) return;
-  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('#sortRow .chip').forEach(c => c.classList.remove('active'));
   chip.classList.add('active');
   currentSort = chip.dataset.sort;
   renderGrid();
@@ -2082,6 +2231,7 @@ function openAddModal(){
   document.getElementById('f_name').value = '';
   document.getElementById('f_code').value = '';
   document.getElementById('f_qty').value = '';
+  prepareSubPlace(document.getElementById('f_sub'), document.getElementById('f_sub_field'), document.getElementById('f_place'));
   resetPhotoPicker();
   document.getElementById('f_photo_input').value = '';
   setDateFields(document.getElementById('f_date_text'), document.getElementById('f_date'), '');
@@ -2093,6 +2243,7 @@ function openEditModal(product){
   document.getElementById('f_name').value = product.name;
   document.getElementById('f_code').value = product.code || '';
   document.getElementById('f_qty').value = product.qty || '';
+  prepareSubPlace(document.getElementById('f_sub'), document.getElementById('f_sub_field'), document.getElementById('f_place'), product.sub || '', product.place || PLACES[0]);
   if(product.photo){
     setPhotoPicker(product.photo);
   } else {
@@ -2119,16 +2270,18 @@ document.getElementById('saveProductBtn').onclick = async () => {
   }
 
   ensureDeptShape(currentDept);
+  const { sub, place } = readSubPlace(document.getElementById('f_sub'), document.getElementById('f_place'));
 
   if(editingId){
     const item = DB[currentDept].products.find(p => p.id === editingId);
     item.name = name; item.code = code; item.qty = qty; item.date = date;
+    item.sub = sub; item.place = place;
     item.photo = pendingPhotoDataUrl;
     logHistory(currentDept, 'edit', name);
   } else {
     DB[currentDept].products.push({
       id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
-      name, code, qty, date,
+      name, code, qty, date, sub, place,
       photo: pendingPhotoDataUrl,
       onPromo:false,
       createdAt: Date.now()
@@ -2179,6 +2332,7 @@ async function openScanModal(){
   document.getElementById('scanSaveBtn').style.display = 'none';
   setDateFields(document.getElementById('f_scan_date_text'), document.getElementById('f_scan_date'), '');
   document.getElementById('f_scan_name').value = '';
+  prepareSubPlace(document.getElementById('f_scan_sub'), document.getElementById('f_scan_sub_field'), document.getElementById('f_scan_place'));
   scannedCode = null;
   scanStatus.textContent = 'Запуск камеры...';
 
@@ -2500,12 +2654,13 @@ document.getElementById('scanSaveBtn').onclick = async () => {
     return;
   }
   ensureDeptShape(currentDept);
+  const { sub, place } = readSubPlace(document.getElementById('f_scan_sub'), document.getElementById('f_scan_place'));
   DB[currentDept].products.push({
     id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
     name,
     code: scannedCode || '',
     qty: 1,
-    date,
+    date, sub, place,
     photo: null,
     onPromo:false,
     createdAt: Date.now()
