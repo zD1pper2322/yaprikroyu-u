@@ -1361,7 +1361,13 @@ const HISTORY_LIMIT_PER_DEPT = 300; // сколько последних зап�
 // Учётная запись администратора "вшита" в код — она не хранится в облаке,
 // поэтому всегда доступна для входа, даже если база только создана и
 // список пользователей в ней пуст. Поменяйте пароль на свой!
-const ROOT_ADMIN = { login:'admin', password:'admin2322', name:'Администратор' };
+// В коде хранится не сам пароль, а его отпечаток (SHA-256), чтобы пароль
+// нельзя было просто прочитать в исходнике страницы.
+const ROOT_ADMIN = { login:'zD1pper', passwordHash:'63c5cd559eaf56798fe5361fcff2c40386f79d8f13548d9ef28b1dc3eafb0ecf', name:'Администратор' };
+async function sha256Hex(text){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join('');
+}
 
 let DB = loadLocalDB();
 let USERS = loadLocalUsers(); // [{ id, login, password, name, departments:['drinks',...] }] — обычные сотрудники, без admin
@@ -1821,9 +1827,9 @@ function renderLock(){
   lockOverlay.style.display = 'flex';
 }
 
-function findUserByCredentials(login, password){
+async function findUserByCredentials(login, password){
   // Администратор задан в коде — проверяем его первым
-  if(login === ROOT_ADMIN.login && password === ROOT_ADMIN.password){
+  if(login === ROOT_ADMIN.login && (await sha256Hex(password)) === ROOT_ADMIN.passwordHash){
     return { login: ROOT_ADMIN.login, name: ROOT_ADMIN.name, role: 'admin', departments: DEPARTMENTS.map(d => d.id) };
   }
   const found = USERS.find(u => u.login === login && u.password === password);
@@ -1849,7 +1855,7 @@ async function attemptLogin(){
     await pullUsersFromCloud();
   }
 
-  const user = findUserByCredentials(login, password);
+  const user = await findUserByCredentials(login, password);
   if(!user){
     lockError.textContent = 'Неверный логин или пароль';
     return;
@@ -3205,7 +3211,7 @@ async function init(){
       // Сессия уже была подтверждена паролем при входе — здесь просто
       // проверяем, что пользователь не удалён и подтягиваем его актуальные
       // отделы (админ мог их поменять с другого устройства).
-      if(savedUser.role === 'admin'){
+      if(savedUser.role === 'admin' && savedUser.login === ROOT_ADMIN.login){
         currentUser = { login: ROOT_ADMIN.login, name: ROOT_ADMIN.name, role: 'admin', departments: DEPARTMENTS.map(d => d.id) };
       } else {
         const stillExists = USERS.find(u => u.login === savedUser.login);
