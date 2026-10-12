@@ -1190,12 +1190,16 @@
     <div class="admin-user-list" id="adminUserList"></div>
 
     <div class="admin-backup-section">
-      <h4>Отделы и подкатегории</h4>
+      <h4>Отделы, подкатегории и места</h4>
       <p class="admin-backup-hint">Меняйте названия, добавляйте и удаляйте отделы и подкатегории. Изменения увидят все сотрудники.</p>
       <div class="catalog-editor" id="catalogEditor"></div>
+      <div class="cat-dept" style="margin-top:10px;">
+        <div class="cat-dept-head"><b style="font-size:13px; color:var(--bg-deep);">Места выкладки</b><span class="cat-count">для всех отделов</span></div>
+        <div class="cat-subs" id="placesEditor"></div>
+      </div>
       <div class="admin-backup-buttons" style="margin-top:10px;">
         <button class="modal-submit" id="catalogAddDeptBtn" style="background:#00000010; color:var(--bg-deep);">+ Новый отдел</button>
-        <button class="modal-submit" id="catalogSaveBtn" style="background:var(--amber); color:var(--bg-deep);">Сохранить отделы</button>
+        <button class="modal-submit" id="catalogSaveBtn" style="background:var(--amber); color:var(--bg-deep);">Сохранить</button>
       </div>
       <p class="admin-backup-meta" id="catalogMsg"></p>
     </div>
@@ -1411,8 +1415,14 @@ function saveLocalCatalog(){
 }
 applyCatalog(loadLocalCatalog());
 
-// Место выкладки — одинаковое для всех отделов.
-const PLACES = ['Полка', 'Кросс', 'ХО'];
+// Места выкладки — общие для всех отделов, меняет админ.
+const DEFAULT_PLACES = ['Полка', 'Кросс', 'ХО'];
+const PLACES_STORAGE_KEY = 'ya_prikroyu_places_v1';
+function normPlaces(raw){
+  const list = asList(raw).filter(v => typeof v === 'string' && v.trim()).map(v => v.trim());
+  return list.length ? list : null;
+}
+let PLACES = (() => { try{ return normPlaces(JSON.parse(localStorage.getItem(PLACES_STORAGE_KEY))) || [...DEFAULT_PLACES]; }catch(e){ return [...DEFAULT_PLACES]; } })();
 let currentSub = '';   // фильтр по подкатегории ('' = все)
 let currentPlace = ''; // фильтр по месту выкладки ('' = все)
 
@@ -1554,46 +1564,124 @@ function logHistory(deptId, action, productName){
 const pendingWriteUntil = {}; // { deptId: timestamp до которого pull для этого отдела игнорируется }
 const WRITE_PROTECTION_MS = 5000;
 
-function saveDB(deptId){
+/* ---------------- ЗАЩИТА ОТ ПОТЕРИ ДАННЫХ БЕЗ СВЯЗИ ----------------
+   Каждый отдел, изменённый на этом телефоне, помечается как «не отправлен»
+   (хранится в памяти телефона и переживает перезапуск). Пока отметка стоит,
+   синхронизация НЕ затирает отдел версией из облака, а СЛИВАЕТ их:
+   - товары, добавленные здесь без связи, остаются;
+   - товары, добавленные другими сотрудниками, подтягиваются;
+   - если товар меняли и тут, и там — побеждает более позднее изменение;
+   - удалённые здесь товары не возвращаются.
+   После слияния отдел отправляется в облако, и отметка снимается. */
+const DIRTY_KEY = 'ya_prikroyu_unsent_v1';     // { deptId: { deleted:[id,...], since:ts } }
+const LAST_SYNC_KEY = 'ya_prikroyu_lastsync_v1'; // { deptId: ts последней удачной синхронизации }
+function readJSON(key, fallback){ try{ const v = JSON.parse(localStorage.getItem(key)); return v && typeof v === 'object' ? v : fallback; }catch(e){ return fallback; } }
+function writeJSON(key, v){ try{ localStorage.setItem(key, JSON.stringify(v)); }catch(e){} }
+let DIRTY = readJSON(DIRTY_KEY, {});
+let LAST_SYNC = readJSON(LAST_SYNC_KEY, {});
+function markDirty(deptId, deletedId){
+  const d = DIRTY[deptId] || (DIRTY[deptId] = { deleted:[], since: Date.now() });
+  if(deletedId && !d.deleted.includes(deletedId)) d.deleted.push(deletedId);
+  writeJSON(DIRTY_KEY, DIRTY);
+}
+function clearDirty(deptId){ delete DIRTY[deptId]; writeJSON(DIRTY_KEY, DIRTY); }
+function unsentCount(){ return Object.keys(DIRTY).length; }
+function stamp(p){ return p.updatedAt || p.createdAt || 0; }
+function touch(p){ p.updatedAt = Date.now(); return p; }
+
+// Слияние локальной версии отдела с облачной.
+function mergeDept(deptId, local, remote){
+  const deleted = new Set((DIRTY[deptId] && DIRTY[deptId].deleted) || []);
+  const lastSync = LAST_SYNC[deptId] || 0;
+  const remoteById = new Map(remote.products.filter(p => p && p.id).map(p => [p.id, p]));
+  const out = [];
+  const seen = new Set();
+  local.products.forEach(p => {
+    if(!p || !p.id) return;
+    seen.add(p.id);
+    const r = remoteById.get(p.id);
+    if(r){ out.push(stamp(r) > stamp(p) ? r : p); return; }
+    // Есть только здесь: либо добавлен здесь без связи, либо его удалили
+    // на другом телефоне. Если он существовал до последней синхронизации
+    // и с тех пор здесь не менялся — значит, его удалили там.
+    if(lastSync && stamp(p) <= lastSync) return;
+    out.push(p);
+  });
+  remote.products.forEach(r => {
+    if(!r || !r.id || seen.has(r.id) || deleted.has(r.id)) return;
+    out.push(r);
+  });
+  const hist = new Map();
+  [...remote.history, ...local.history].forEach(h => { if(h && h.id) hist.set(h.id, h); });
+  const history = [...hist.values()].sort((x,y) => (y.ts||0) - (x.ts||0)).slice(0, HISTORY_LIMIT_PER_DEPT);
+  return { products: out, history };
+}
+
+function deptFromRemote(val){
+  if(Array.isArray(val)) return { products: val.filter(Boolean), history: [] };
+  if(val && typeof val === 'object'){
+    return {
+      products: asList(val.products).filter(Boolean),
+      history: asList(val.history).filter(Boolean)
+    };
+  }
+  return { products: [], history: [] };
+}
+
+// saveDB() вызывается после любого изменения товара: сохраняет на телефоне,
+// помечает отдел как «не отправлен» и пытается отправить его в облако.
+function saveDB(deptId, deletedId){
+  if(deptId) markDirty(deptId, deletedId);
   saveLocalDB();
   if(CLOUD_ENABLED && deptId){
     pendingWriteUntil[deptId] = Date.now() + WRITE_PROTECTION_MS;
-    return pushDeptToCloud(deptId); // возвращаем промис, чтобы вызывающий код мог дождаться отправки перед закрытием формы
+    return pushDeptToCloud(deptId);
   }
+  if(deptId) clearDirty(deptId);
   return Promise.resolve();
 }
 
-async function pushDeptToCloud(deptId){
+// Отправка отдела. Сначала читаем облачную версию и сливаем с ней —
+// чтобы не затереть то, что другие добавили, пока мы были без связи.
+// replace=true — записать как есть, без слияния (восстановление из копии).
+async function pushDeptToCloud(deptId, quiet, replace){
   try{
     ensureDeptShape(deptId);
-    const payload = JSON.stringify(DB[deptId]);
-    console.log(`Отправляю отдел "${deptId}": товаров=${DB[deptId].products.length}, история=${DB[deptId].history.length}, размер тела=${payload.length} байт`);
-    console.log(`СОДЕРЖИМОЕ payload целиком: ${payload}`);
-    const res = await fetch(`${FIREBASE_DB_URL}/departments/${deptId}.json`, {
+    const url = `${FIREBASE_DB_URL}/departments/${deptId}.json`;
+    if(!replace){
+      const cur = await fetch(url + `?_=${Date.now()}`, { cache:'no-store' });
+      if(!cur.ok) throw new Error('чтение ' + cur.status);
+      DB[deptId] = mergeDept(deptId, DB[deptId], deptFromRemote(await cur.json()));
+      saveLocalDB();
+    }
+    const res = await fetch(url, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       cache: 'no-store',
-      body: payload
+      body: JSON.stringify(DB[deptId])
     });
     if(!res.ok){
       let bodyText = '';
       try{ bodyText = await res.text(); }catch(e){}
       console.error('[Я прикрою] Облако: ошибка сохранения, код', res.status, 'ответ:', bodyText);
       showCloudStatus('error');
-      showToast(`❌ Не сохранено в общую базу (ошибка ${res.status}) — только на этом устройстве`, 'error', 6000);
-    } else {
-      const confirmedBody = await res.text();
-      console.log(`Firebase подтвердил запись для "${deptId}", ответ сервера:`, confirmedBody.slice(0, 200));
-      showCloudStatus('ok');
-      showToast('✅ Сохранено в общую базу', 'success', 2000);
-      // Запись подтверждена сервером — снимаем защиту немного раньше таймера,
-      // чтобы следующий pull уже мог приносить чужие изменения по этому отделу.
-      pendingWriteUntil[deptId] = Date.now() + 1500;
+      pendingWriteUntil[deptId] = 0; // запись не прошла — следующая синхронизация повторит её
+      if(!quiet) showToast(`⚠ Сохранено на телефоне. В общую базу отправлю, когда она ответит (ошибка ${res.status})`, 'error', 5000);
+      return false;
     }
+    clearDirty(deptId);
+    LAST_SYNC[deptId] = Date.now(); writeJSON(LAST_SYNC_KEY, LAST_SYNC);
+    pendingWriteUntil[deptId] = Date.now() + 1500;
+    showCloudStatus(unsentCount() ? 'offline' : 'ok');
+    if(!quiet) showToast('✅ Сохранено в общую базу', 'success', 2000);
+    if(currentDept === deptId){ renderGrid(); renderTabs(); renderAlertBanner(); }
+    return true;
   }catch(e){
     console.error('[Я прикрою] Облако недоступно (нет связи?):', e.message);
     showCloudStatus('offline');
-    showToast(`❌ Нет связи с общей базой — сохранено только локально`, 'error', 6000);
+    pendingWriteUntil[deptId] = 0;
+    if(!quiet) showToast('📴 Нет связи. Сохранено на телефоне — отправлю, когда появится сеть', 'error', 5000);
+    return false;
   }
 }
 
@@ -1603,42 +1691,38 @@ async function pullFromCloud(){
   try{
     const res = await fetch(`${FIREBASE_DB_URL}/departments.json?_=${Date.now()}`, { cache: 'no-store' });
     if(res.ok){
-      const remote = await res.json();
-      console.log('Pull получил с сервера:', JSON.stringify(remote).slice(0, 300));
-      if(remote && typeof remote === 'object'){
-        const now = Date.now();
-        DEPARTMENTS.forEach(d => {
-          // Если по этому отделу только что было локальное изменение —
-          // пропускаем обновление из pull, чтобы не затереть его более
-          // старой версией, которая ещё могла прийти с сервера.
-          if(pendingWriteUntil[d.id] && pendingWriteUntil[d.id] > now){
-            console.log(`Pull пропускает "${d.id}" — действует защита от перезаписи`);
-            return;
-          }
-          if(remote[d.id]){
-            const remoteVal = remote[d.id];
-            // Если в облаке оказался старый формат (сам массив товаров без
-            // обёртки) — конвертируем на лету, как и при загрузке локально.
-            const remoteProducts = Array.isArray(remoteVal) ? remoteVal : (Array.isArray(remoteVal.products) ? remoteVal.products : []);
-            const remoteHistory = Array.isArray(remoteVal) ? [] : (Array.isArray(remoteVal.history) ? remoteVal.history : []);
-            console.log(`Pull обновляет "${d.id}": было товаров=${DB[d.id]?.products?.length ?? 0}, стало=${remoteProducts.length}`);
-            DB[d.id] = { products: remoteProducts, history: remoteHistory };
-          } else {
-            console.log(`Pull: на сервере НЕТ узла "${d.id}" (remote[d.id] = ${remote[d.id]}) — обнуляю локально`);
-            ensureDeptShape(d.id);
-          }
-        });
-        saveLocalDB();
-        if(currentDept){
-          renderGrid();
-          renderTabs();
-          renderAlertBanner();
-          if(document.getElementById('historyModalOverlay')?.classList.contains('show')){
-            renderHistory();
-          }
+      const remote = (await res.json()) || {};
+      const now = Date.now();
+      const toPush = [];
+      DEPARTMENTS.forEach(d => {
+        if(pendingWriteUntil[d.id] && pendingWriteUntil[d.id] > now) return;
+        const r = deptFromRemote(remote[d.id]);
+        if(DIRTY[d.id]){
+          // Есть неотправленные изменения — сливаем и отправляем.
+          ensureDeptShape(d.id);
+          DB[d.id] = mergeDept(d.id, DB[d.id], r);
+          toPush.push(d.id);
+        } else {
+          DB[d.id] = r;
+          LAST_SYNC[d.id] = now;
+        }
+      });
+      writeJSON(LAST_SYNC_KEY, LAST_SYNC);
+      saveLocalDB();
+      if(currentDept){
+        renderGrid();
+        renderTabs();
+        renderAlertBanner();
+        if(document.getElementById('historyModalOverlay')?.classList.contains('show')){
+          renderHistory();
         }
       }
-      showCloudStatus('ok');
+      showCloudStatus(toPush.length ? 'offline' : 'ok');
+      for(const id of toPush){
+        pendingWriteUntil[id] = Date.now() + WRITE_PROTECTION_MS;
+        const ok = await pushDeptToCloud(id, true);
+        if(ok) showToast('✅ Изменения, сделанные без связи, отправлены в общую базу', 'success', 3000);
+      }
     } else {
       let bodyText = '';
       try{ bodyText = await res.text(); }catch(e){}
@@ -1652,6 +1736,8 @@ async function pullFromCloud(){
   cloudSyncing = false;
   maybeSeedBeer(); // перенос пива — после первой синхронизации (или без связи — локально)
 }
+// Как только телефон снова в сети — сразу синхронизируемся.
+window.addEventListener('online', () => { if(currentUser) pullFromCloud(); });
 
 let usersSyncing = false;
 let pendingUsersWriteUntil = 0;
@@ -1712,11 +1798,20 @@ async function pullCatalogFromCloud(){
     const res = await fetch(`${FIREBASE_DB_URL}/config/catalog.json?_=${Date.now()}`, { cache:'no-store' });
     if(res.ok && Date.now() > pendingCatalogWriteUntil){
       const remote = normCatalog(await res.json());
+      let changed = false;
       if(remote && JSON.stringify(remote) !== JSON.stringify(catalogFromState())){
         applyCatalog(remote);
         saveLocalCatalog();
-        afterCatalogChange();
+        changed = true;
       }
+      const pr = await fetch(`${FIREBASE_DB_URL}/config/places.json?_=${Date.now()}`, { cache:'no-store' });
+      const rp = pr.ok ? normPlaces(await pr.json()) : null;
+      if(rp && JSON.stringify(rp) !== JSON.stringify(PLACES) && Date.now() > pendingCatalogWriteUntil){
+        PLACES = rp;
+        try{ localStorage.setItem(PLACES_STORAGE_KEY, JSON.stringify(PLACES)); }catch(e){}
+        changed = true;
+      }
+      if(changed) afterCatalogChange();
     }
   }catch(e){
     console.error('[Я прикрою] Не удалось обновить список отделов:', e.message);
@@ -1725,6 +1820,7 @@ async function pullCatalogFromCloud(){
 }
 async function pushCatalogToCloud(){
   saveLocalCatalog();
+  try{ localStorage.setItem(PLACES_STORAGE_KEY, JSON.stringify(PLACES)); }catch(e){}
   if(!CLOUD_ENABLED) return true;
   pendingCatalogWriteUntil = Date.now() + 5000;
   try{
@@ -1732,8 +1828,12 @@ async function pushCatalogToCloud(){
       method:'PUT', headers:{'Content-Type':'application/json'}, cache:'no-store',
       body: JSON.stringify(catalogFromState())
     });
+    const res2 = await fetch(`${FIREBASE_DB_URL}/config/places.json`, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, cache:'no-store',
+      body: JSON.stringify(PLACES)
+    });
     pendingCatalogWriteUntil = Date.now() + 1500;
-    return res.ok;
+    return res.ok && res2.ok;
   }catch(e){
     console.error('[Я прикрою] Ошибка сохранения отделов:', e.message);
     return false;
@@ -1792,22 +1892,15 @@ async function maybeSeedBeer(){
     }
     ensureDeptShape('drinks');
     const have = new Set(DB.drinks.products.map(p => p.id));
-    const fresh = SEED_BEER.filter(p => !have.has(p.id)).map(p => ({ ...p }));
+    const fresh = SEED_BEER.filter(p => !have.has(p.id)).map(p => touch({ ...p }));
     if(fresh.length){
       DB.drinks.products.push(...fresh);
       logHistory('drinks', 'add', `Перенос списка пива: ${fresh.length} поз.`);
     }
-    saveLocalDB();
-    if(CLOUD_ENABLED){
-      pendingWriteUntil.drinks = Date.now() + WRITE_PROTECTION_MS;
-      const res = await fetch(`${FIREBASE_DB_URL}/departments/drinks.json`, {
-        method:'PUT', headers:{'Content-Type':'application/json'}, cache:'no-store', body: JSON.stringify(DB.drinks)
-      });
-      if(res.ok){
-        await fetch(`${FIREBASE_DB_URL}/meta/seedBeerV1.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:'true' }).catch(()=>{});
-        localStorage.setItem(SEED_FLAG_KEY, '1');
-      }
-    } else {
+    let ok = true;
+    if(fresh.length) ok = await saveDB('drinks', null).then(() => !DIRTY.drinks);
+    if(ok || !CLOUD_ENABLED){
+      if(CLOUD_ENABLED) await fetch(`${FIREBASE_DB_URL}/meta/seedBeerV1.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:'true' }).catch(()=>{});
       localStorage.setItem(SEED_FLAG_KEY, '1');
     }
     if(fresh.length) showToast(`✅ Перенесено в «Напитки»: ${fresh.length} поз. пива`, 'success', 4000);
@@ -2189,15 +2282,17 @@ async function handleCardAction(action, id){
   if(action === 'del'){
     if(confirm(`Удалить «${list[idx].name}» из списка?`)){
       const name = list[idx].name;
+      const deletedId = list[idx].id;
       list.splice(idx,1);
       logHistory(currentDept, 'delete', name);
       renderGrid();
       renderTabs();
       renderAlertBanner();
-      await saveDB(currentDept);
+      await saveDB(currentDept, deletedId);
     }
   } else if(action === 'promo'){
     list[idx].onPromo = !list[idx].onPromo;
+    touch(list[idx]);
     logHistory(currentDept, list[idx].onPromo ? 'promo_on' : 'promo_off', list[idx].name);
     renderGrid();
     await saveDB(currentDept);
@@ -2377,6 +2472,14 @@ document.getElementById('fabAdd').onclick = openAddModal;
 document.getElementById('closeAddModal').onclick = () => addModalOverlay.classList.remove('show');
 addModalOverlay.onclick = e => { if(e.target === addModalOverlay) addModalOverlay.classList.remove('show'); };
 
+document.getElementById('f_code').addEventListener('change', async () => {
+  if(editingId) return;
+  const hit = await lookupBarcode(document.getElementById('f_code').value);
+  if(applyBarcodeHit(hit, document.getElementById('f_name'), document.getElementById('f_sub'), document.getElementById('f_place'))){
+    showToast(`📖 Из справочника: ${hit.name}`, 'info', 2500);
+  }
+});
+
 document.getElementById('saveProductBtn').onclick = async () => {
   const name = document.getElementById('f_name').value.trim();
   const code = document.getElementById('f_code').value.trim();
@@ -2395,8 +2498,10 @@ document.getElementById('saveProductBtn').onclick = async () => {
     const item = DB[currentDept].products.find(p => p.id === editingId);
     item.name = name; item.code = code; item.qty = qty; item.date = date;
     item.sub = sub; item.place = place;
+    touch(item);
     item.photo = pendingPhotoDataUrl;
     logHistory(currentDept, 'edit', name);
+    if(code) rememberBarcode(code, { name, dept: currentDept, sub, place });
   } else {
     DB[currentDept].products.push({
       id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
@@ -2406,6 +2511,7 @@ document.getElementById('saveProductBtn').onclick = async () => {
       createdAt: Date.now()
     });
     logHistory(currentDept, 'add', name);
+    if(code) rememberBarcode(code, { name, dept: currentDept, sub, place });
   }
 
   // Ждём подтверждения записи в облако ПЕРЕД закрытием формы — если человек
@@ -2427,6 +2533,58 @@ document.getElementById('saveProductBtn').onclick = async () => {
   renderTabs();
   renderAlertBanner();
 };
+
+/* ---------------- СПРАВОЧНИК ПО ШТРИХКОДУ ----------------
+   Запоминает название, отдел, подкатегорию и место для каждого
+   штрихкода/GTIN. При следующем сканировании того же товара поля
+   заполняются сами — остаётся ввести только срок.
+   Ключ — GTIN (14 цифр): у марок «Честного знака» он одинаковый для
+   всех упаковок товара, хотя серийный номер у каждой свой. */
+const BARCODE_KEY = 'ya_prikroyu_barcodes_v1';
+let BARCODES = readJSON(BARCODE_KEY, {});
+function barcodeKey(code){
+  if(!code) return '';
+  const raw = String(code).trim();
+  const dm = raw.match(/^(?:\]d2|\]Q3)?\x1d?\(?01\)?(\d{14})/);
+  if(dm) return 'g' + dm[1];
+  if(/^\d{8,14}$/.test(raw)) return 'g' + raw.padStart(14, '0');
+  return '';
+}
+async function lookupBarcode(code){
+  const key = barcodeKey(code);
+  if(!key) return null;
+  if(BARCODES[key]) return BARCODES[key];
+  // Уже есть в списке товаров любого отдела?
+  for(const d of DEPARTMENTS){
+    const p = (DB[d.id]?.products || []).filter(x => x.code && barcodeKey(x.code) === key).sort((a,b) => stamp(b) - stamp(a))[0];
+    if(p) return { name:p.name, dept:d.id, sub:p.sub || '', place:p.place || '' };
+  }
+  if(CLOUD_ENABLED){
+    try{
+      const r = await fetch(`${FIREBASE_DB_URL}/barcodes/${key}.json`, { cache:'no-store' });
+      const v = r.ok ? await r.json() : null;
+      if(v && v.name){ BARCODES[key] = v; writeJSON(BARCODE_KEY, BARCODES); return v; }
+    }catch(e){}
+  }
+  return null;
+}
+function rememberBarcode(code, rec){
+  const key = barcodeKey(code);
+  if(!key || !rec.name) return;
+  const v = { name:rec.name, dept:rec.dept || '', sub:rec.sub || '', place:rec.place || '', ts:Date.now() };
+  BARCODES[key] = v; writeJSON(BARCODE_KEY, BARCODES);
+  if(CLOUD_ENABLED){
+    fetch(`${FIREBASE_DB_URL}/barcodes/${key}.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(v) }).catch(() => {});
+  }
+}
+// Подставить найденное в форму (подкатегорию — только если тот же отдел).
+function applyBarcodeHit(hit, nameIn, subSel, placeSel){
+  if(!hit) return false;
+  if(!nameIn.value.trim()) nameIn.value = hit.name;
+  if(hit.dept === currentDept && hit.sub && [...subSel.options].some(o => o.value === hit.sub)) subSel.value = hit.sub;
+  if(hit.place && [...placeSel.options].some(o => o.value === hit.place)) placeSel.value = hit.place;
+  return true;
+}
 
 /* ---------------- SCANNER ---------------- */
 const scanModalOverlay = document.getElementById('scanModalOverlay');
@@ -2732,6 +2890,14 @@ function onCodeScanned(data, format){
   if(gtinMatch){
     document.getElementById('f_scan_name').placeholder = 'GTIN: ' + gtinMatch[1] + ' — введите название';
   }
+  lookupBarcode(data).then(hit => {
+    if(scannedCode !== data) return; // уже отсканировали другое
+    if(applyBarcodeHit(hit, document.getElementById('f_scan_name'), document.getElementById('f_scan_sub'), document.getElementById('f_scan_place'))){
+      const otherDept = hit.dept && hit.dept !== currentDept ? DEPARTMENTS.find(d => d.id === hit.dept) : null;
+      scanStatus.textContent = `Товар из справочника: «${hit.name}»${otherDept ? ` (раньше был в отделе «${otherDept.name}»)` : ''}. Укажите срок годности.`;
+      document.getElementById('f_scan_date_text').focus();
+    }
+  });
 }
 
 let duplicateContext = null; // { existingProduct, code }
@@ -2785,6 +2951,7 @@ document.getElementById('scanSaveBtn').onclick = async () => {
     createdAt: Date.now()
   });
   logHistory(currentDept, 'scan', name);
+  rememberBarcode(scannedCode, { name, dept: currentDept, sub, place });
 
   const scanSaveBtn = document.getElementById('scanSaveBtn');
   scanSaveBtn.disabled = true;
@@ -2852,13 +3019,39 @@ function renderAdminUserList(){
 /* ---------------- АДМИН: ОТДЕЛЫ И ПОДКАТЕГОРИИ ---------------- */
 let catalogDraft = [];   // редактируемая копия: [{id, name, icon, isNew, subs:[{name, orig}]}]
 let catalogDirty = false;
+let placesDraft = [];    // [{name, orig}]
 function startCatalogDraft(){
   catalogDraft = catalogFromState().map(d => ({ ...d, isNew:false, subs: d.subs.map(n => ({ name:n, orig:n })) }));
+  placesDraft = PLACES.map(n => ({ name:n, orig:n }));
   catalogDirty = false;
   document.getElementById('catalogMsg').textContent = '';
 }
 function productCount(deptId){ return (DB[deptId]?.products || []).length; }
+function placeUsage(name){
+  return DEPARTMENTS.reduce((n, d) => n + (DB[d.id]?.products || []).filter(p => p.place === name).length, 0);
+}
+function renderPlacesEditor(){
+  const box = document.getElementById('placesEditor');
+  box.innerHTML = '';
+  placesDraft.forEach((pObj, i) => {
+    const row = document.createElement('div'); row.className = 'cat-sub';
+    const inp = document.createElement('input'); inp.value = pObj.name; inp.placeholder = 'Место выкладки';
+    inp.oninput = () => { pObj.name = inp.value; catalogDirty = true; };
+    const x = document.createElement('button'); x.className = 'cat-x'; x.type = 'button'; x.textContent = '✕'; x.title = 'Удалить место';
+    x.onclick = () => {
+      if(placesDraft.length === 1){ alert('Должно остаться хотя бы одно место выкладки.'); return; }
+      const used = pObj.orig ? placeUsage(pObj.orig) : 0;
+      if(used && !confirm(`Место «${pObj.orig}» указано у ${used} тов. Удалить? У этих товаров место станет пустым.`)) return;
+      placesDraft.splice(i, 1); catalogDirty = true; renderPlacesEditor();
+    };
+    row.append(inp, x); box.appendChild(row);
+  });
+  const add = document.createElement('button'); add.className = 'cat-link'; add.type = 'button'; add.textContent = '+ место';
+  add.onclick = () => { placesDraft.push({ name:'', orig:null }); catalogDirty = true; renderPlacesEditor(); const ins = box.querySelectorAll('input'); ins[ins.length-1]?.focus(); };
+  box.appendChild(add);
+}
 function renderCatalogEditor(){
+  renderPlacesEditor();
   const box = document.getElementById('catalogEditor');
   box.innerHTML = '';
   catalogDraft.forEach((d, di) => {
@@ -2914,8 +3107,26 @@ document.getElementById('catalogSaveBtn').onclick = async () => {
     const sn = d.subs.map(s => s.name.trim()).filter(Boolean);
     if(new Set(sn.map(n => n.toLowerCase())).size !== sn.length){ msg.textContent = `В отделе «${d.name.trim()}» повторяются подкатегории.`; return; }
   }
+  const pn = placesDraft.map(p => p.name.trim()).filter(Boolean);
+  if(!pn.length){ msg.textContent = 'Нужно хотя бы одно место выкладки.'; return; }
+  if(new Set(pn.map(n => n.toLowerCase())).size !== pn.length){ msg.textContent = 'Места выкладки повторяются.'; return; }
   // Переименования и удаления подкатегорий переносим на товары
   const changedDepts = [];
+  const placeRen = {};
+  placesDraft.forEach(p => { if(p.orig && p.name.trim() && p.name.trim() !== p.orig) placeRen[p.orig] = p.name.trim(); });
+  const placeRemoved = PLACES.filter(o => !placesDraft.some(p => p.orig === o && p.name.trim()));
+  DEPARTMENTS.forEach(d => {
+    ensureDeptShape(d.id);
+    let t = false;
+    DB[d.id].products.forEach(p => {
+      if(!p.place) return;
+      if(placeRen[p.place]){ p.place = placeRen[p.place]; touch(p); t = true; }
+      else if(placeRemoved.includes(p.place)){ p.place = ''; touch(p); t = true; }
+    });
+    if(t) changedDepts.push(d.id);
+  });
+  PLACES = pn;
+  if(currentPlace && !PLACES.includes(currentPlace)) currentPlace = placeRen[currentPlace] || '';
   catalogDraft.forEach(d => {
     if(d.isNew) return;
     ensureDeptShape(d.id);
@@ -2927,10 +3138,10 @@ document.getElementById('catalogSaveBtn').onclick = async () => {
     let touched = false;
     DB[d.id].products.forEach(p => {
       if(!p.sub) return;
-      if(renames[p.sub]){ p.sub = renames[p.sub]; touched = true; }
-      else if(removed.includes(p.sub)){ p.sub = ''; touched = true; }
+      if(renames[p.sub]){ p.sub = renames[p.sub]; touch(p); touched = true; }
+      else if(removed.includes(p.sub)){ p.sub = ''; touch(p); touched = true; }
     });
-    if(touched) changedDepts.push(d.id);
+    if(touched && !changedDepts.includes(d.id)) changedDepts.push(d.id);
   });
   applyCatalog(catalogDraft.map(d => ({
     id: d.id,
@@ -2943,13 +3154,13 @@ document.getElementById('catalogSaveBtn').onclick = async () => {
   const ok = await pushCatalogToCloud();
   for(const id of changedDepts) await saveDB(id);
   saveLocalDB();
-  btn.disabled = false; btn.textContent = 'Сохранить отделы';
+  btn.disabled = false; btn.textContent = 'Сохранить';
   startCatalogDraft();
   afterCatalogChange();
   renderCatalogEditor();
   renderAdminUserList();
   msg.textContent = ok ? 'Сохранено. Изменения увидят все сотрудники.' : 'Сохранено на этом телефоне. В общую базу не ушло — нет связи.';
-  showToast(ok ? '✅ Отделы сохранены' : '⚠ Отделы сохранены только на этом устройстве', ok ? 'success' : 'error', 3000);
+  showToast(ok ? '✅ Сохранено' : '⚠ Сохранено только на этом устройстве', ok ? 'success' : 'error', 3000);
 };
 
 document.getElementById('adminBtn').onclick = () => {
@@ -3223,7 +3434,8 @@ function downloadBackup(){
     createdBy: currentUser ? currentUser.login : 'unknown',
     departments: DB,
     users: USERS,
-    catalog: catalogFromState()
+    catalog: catalogFromState(),
+    places: PLACES
   };
 
   const json = JSON.stringify(backup, null, 2);
@@ -3307,7 +3519,9 @@ document.getElementById('restoreConfirmBtn').onclick = async () => {
     // Приводим каждый отдел из файла к актуальному формату (на случай если
     // бэкап делался ещё со старой версией структуры данных).
     const restoredCatalog = normCatalog(pendingRestoreData.catalog);
-    if(restoredCatalog){ applyCatalog(restoredCatalog); await pushCatalogToCloud(); }
+    const restoredPlaces = normPlaces(pendingRestoreData.places);
+    if(restoredPlaces) PLACES = restoredPlaces;
+    if(restoredCatalog || restoredPlaces){ if(restoredCatalog) applyCatalog(restoredCatalog); await pushCatalogToCloud(); }
     const restoredDB = {};
     DEPARTMENTS.forEach(d => {
       const value = pendingRestoreData.departments[d.id];
@@ -3334,7 +3548,8 @@ document.getElementById('restoreConfirmBtn').onclick = async () => {
     if(CLOUD_ENABLED){
       for(const d of DEPARTMENTS){
         pendingWriteUntil[d.id] = Date.now() + 5000;
-        await pushDeptToCloud(d.id);
+        markDirty(d.id);
+        await pushDeptToCloud(d.id, true, true);
       }
       await pushUsersToCloud();
     }

@@ -4,7 +4,7 @@
 // в localStorage на устройстве, так что список товаров доступен
 // даже без интернета — нужно лишь чтобы саму страницу отдало из кэша).
 
-const CACHE_NAME = 'ya-prikroyu-v3';
+const CACHE_NAME = 'ya-prikroyu-v4';
 const FILES_TO_CACHE = [
   './index.html',
   './manifest.json'
@@ -27,6 +27,10 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Кэшируем только сами файлы приложения. Запросы к общей базе и другим
+  // сайтам идут напрямую: иначе без связи приложение получало бы из кэша
+  // устаревшие данные базы.
+  if (event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin) return;
   // Сеть в приоритете (чтобы видеть свежую версию), кэш — как запасной
   // вариант, если соединения нет.
   event.respondWith(
