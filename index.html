@@ -1048,7 +1048,7 @@
       <div class="dept-checkbox-list" id="reqDeptList"></div>
     </div>
     <div class="field">
-      <label>Как с вами связаться</label>
+      <label>Как с вами связаться (необязательно)</label>
       <input type="text" id="req_contact" placeholder="Телефон или ссылка на ВК" maxlength="80">
     </div>
     <div class="field">
@@ -3336,7 +3336,6 @@ document.getElementById('sendAccessRequestBtn').onclick = async () => {
   const comment = document.getElementById('req_comment').value.trim();
   const depts = [...document.querySelectorAll('#reqDeptList input:checked')].map(el => el.value);
   if(!name){ msg.textContent = 'Укажите имя.'; return; }
-  if(!contact){ msg.textContent = 'Укажите, как с вами связаться, чтобы администратор мог передать пароль.'; return; }
   try{
     const last = Number(localStorage.getItem(REQ_SENT_KEY) || 0);
     if(Date.now() - last < 10 * 60000){ msg.textContent = 'Запрос уже отправлен. Повторно можно через 10 минут.'; return; }
@@ -3390,7 +3389,7 @@ function renderAccessRequests(){
     row.querySelector('.req-name').textContent = r.name;
     const metas = row.querySelectorAll('.req-meta');
     metas[0].textContent = `${deptNames} · ${when}`;
-    metas[1].textContent = `Связь: ${r.contact}${r.comment ? ' · ' + r.comment : ''}`;
+    metas[1].textContent = `Связь: ${r.contact || 'не указана'}${r.comment ? ' · ' + r.comment : ''}`;
     row.querySelector('.req-ok').onclick = () => {
       fromRequestId = r.id;
       openUserEditModal(null);

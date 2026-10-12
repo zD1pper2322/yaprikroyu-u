@@ -18,7 +18,7 @@ async function main() {
 
   const lines = fresh.map(([, r]) => {
     const depts = (Array.isArray(r.depts) ? r.depts : Object.values(r.depts || {})).map(id => names[id] || id).join(', ') || 'отдел не указан';
-    return `• ${String(r.name).slice(0, 60)} — ${depts}\n  Связь: ${String(r.contact || '—').slice(0, 80)}${r.comment ? `\n  ${String(r.comment).slice(0, 120)}` : ''}`;
+    return `• ${String(r.name).slice(0, 60)} — ${depts}\n  Связь: ${String(r.contact || 'не указана').slice(0, 80)}${r.comment ? `\n  ${String(r.comment).slice(0, 120)}` : ''}`;
   });
   const text = `🔑 Я прикрою! · ${fresh.length === 1 ? 'новый запрос доступа' : `новых запросов доступа: ${fresh.length}`}\n\n${lines.join('\n\n')}\n\nСоздать сотрудника: приложение → 👤 → «Запросы доступа».`;
 
