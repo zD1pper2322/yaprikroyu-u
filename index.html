@@ -759,6 +759,20 @@
     padding:30px 10px;
   }
 
+  .catalog-editor{display:flex; flex-direction:column; gap:10px;}
+  .cat-dept{background:#00000008; border:1px solid #00000010; border-radius:12px; padding:10px;}
+  .cat-dept-head{display:flex; gap:8px; align-items:center;}
+  .cat-dept-head input{flex:1; min-width:0; font-weight:700;}
+  .cat-dept input{padding:9px 10px; border-radius:8px; border:1.5px solid #00000018; font-family:'Inter',sans-serif; font-size:14px; color:var(--bg-deep); background:#fff; outline:none;}
+  .cat-dept input:focus{border-color:var(--amber);}
+  .cat-count{font-size:11px; color:#888; white-space:nowrap;}
+  .cat-subs{display:flex; flex-direction:column; gap:6px; margin:8px 0 0 12px; padding-left:10px; border-left:2px solid var(--amber);}
+  .cat-sub{display:flex; gap:6px; align-items:center;}
+  .cat-sub input{flex:1; min-width:0;}
+  .cat-x{width:34px; height:34px; flex-shrink:0; border-radius:8px; border:none; background:var(--red-dim); color:#a33; font-size:14px; cursor:pointer;}
+  .cat-link{background:none; border:none; color:#8a5a12; font-weight:700; font-size:12.5px; padding:6px 0 0; cursor:pointer; text-align:left;}
+  .cat-del{background:none; border:none; color:#a33; font-weight:700; font-size:12px; padding:8px 0 0; cursor:pointer;}
+
   .admin-backup-section{
     margin-top:18px;
     padding-top:18px;
@@ -1176,6 +1190,17 @@
     <div class="admin-user-list" id="adminUserList"></div>
 
     <div class="admin-backup-section">
+      <h4>Отделы и подкатегории</h4>
+      <p class="admin-backup-hint">Меняйте названия, добавляйте и удаляйте отделы и подкатегории. Изменения увидят все сотрудники.</p>
+      <div class="catalog-editor" id="catalogEditor"></div>
+      <div class="admin-backup-buttons" style="margin-top:10px;">
+        <button class="modal-submit" id="catalogAddDeptBtn" style="background:#00000010; color:var(--bg-deep);">+ Новый отдел</button>
+        <button class="modal-submit" id="catalogSaveBtn" style="background:var(--amber); color:var(--bg-deep);">Сохранить отделы</button>
+      </div>
+      <p class="admin-backup-meta" id="catalogMsg"></p>
+    </div>
+
+    <div class="admin-backup-section">
       <h4>Резервная копия</h4>
       <p class="admin-backup-hint">Сохраните всю базу (товары, историю, сотрудников) в один файл — если что-то пойдёт не так, из него можно всё восстановить.</p>
       <div class="admin-backup-buttons">
@@ -1334,19 +1359,58 @@ const FIREBASE_DB_URL = 'https://ya-prikroyu-default-rtdb.europe-west1.firebased
 const CLOUD_ENABLED = FIREBASE_DB_URL.trim().length > 0;
 const CLOUD_POLL_INTERVAL_MS = 8000; // как часто проверять обновления с других устройств
 
-const DEPARTMENTS = [
-  { id:'drinks',  name:'Напитки',                 icon:'Н' },
-  { id:'grocery', name:'Бакалея',                  icon:'Б' },
-  { id:'sof',     name:'СОФ',                      icon:'С' },
-  { id:'gastro1', name:'Гастроном 1',               icon:'Г1' },
-  { id:'gastro2', name:'Гастроном 2',               icon:'Г2' },
-  { id:'sweets',  name:'Кондитерские изделия',      icon:'К' },
+/* ---------------- ОТДЕЛЫ И ПОДКАТЕГОРИИ ----------------
+   Список отделов и их подкатегорий меняет администратор прямо в
+   приложении (кнопка 👤 → «Отделы и подкатегории»). Он хранится в общей
+   базе (/config/catalog) и в памяти телефона. Ниже — список по умолчанию,
+   который используется, пока админ ничего не менял. */
+const DEFAULT_CATALOG = [
+  { id:'drinks',  name:'Напитки',              icon:'Н',  subs:['Пиво ПЭТ', 'Пиво Импорт', 'Пиво Мир', 'Пиво Вкус', 'Пиво России'] },
+  { id:'grocery', name:'Бакалея',              icon:'Б',  subs:[] },
+  { id:'sof',     name:'СОФ',                  icon:'С',  subs:[] },
+  { id:'gastro1', name:'Гастроном 1',          icon:'Г1', subs:[] },
+  { id:'gastro2', name:'Гастроном 2',          icon:'Г2', subs:[] },
+  { id:'sweets',  name:'Кондитерские изделия', icon:'К',  subs:[] },
 ];
+const CATALOG_STORAGE_KEY = 'ya_prikroyu_catalog_v1';
+let DEPARTMENTS = [];
+let SUBCATS = {};
 
-// Подкатегории внутри отделов. Новые добавляются сюда: { id_отдела: [список] }.
-const SUBCATS = {
-  drinks: ['Пиво ПЭТ', 'Пиво Импорт', 'Пиво Мир', 'Пиво Вкус', 'Пиво России'],
-};
+function makeDeptIcon(name){
+  const words = String(name).trim().split(/\s+/).filter(Boolean);
+  if(!words.length) return '?';
+  const digits = (words[words.length-1].match(/^\d+$/) || [''])[0];
+  return (words[0][0].toUpperCase() + digits).slice(0, 3);
+}
+// Firebase может вернуть массив как объект {0:...,1:...} — приводим к массиву.
+function asList(x){ return Array.isArray(x) ? x : (x && typeof x === 'object' ? Object.values(x) : []); }
+function normCatalog(raw){
+  const list = asList(raw).filter(d => d && typeof d.id === 'string' && d.id && typeof d.name === 'string' && d.name.trim());
+  if(!list.length) return null;
+  return list.map(d => ({
+    id: d.id,
+    name: d.name.trim(),
+    icon: (typeof d.icon === 'string' && d.icon) ? d.icon : makeDeptIcon(d.name),
+    subs: asList(d.subs).filter(v => typeof v === 'string' && v.trim()).map(v => v.trim())
+  }));
+}
+function applyCatalog(list){
+  DEPARTMENTS = list.map(d => ({ id:d.id, name:d.name, icon:d.icon }));
+  SUBCATS = {};
+  list.forEach(d => { if(d.subs.length) SUBCATS[d.id] = [...d.subs]; });
+}
+function catalogFromState(){
+  return DEPARTMENTS.map(d => ({ id:d.id, name:d.name, icon:d.icon, subs:[...(SUBCATS[d.id] || [])] }));
+}
+function loadLocalCatalog(){
+  try{ const c = normCatalog(JSON.parse(localStorage.getItem(CATALOG_STORAGE_KEY))); if(c) return c; }catch(e){}
+  return normCatalog(DEFAULT_CATALOG);
+}
+function saveLocalCatalog(){
+  try{ localStorage.setItem(CATALOG_STORAGE_KEY, JSON.stringify(catalogFromState())); }catch(e){}
+}
+applyCatalog(loadLocalCatalog());
+
 // Место выкладки — одинаковое для всех отделов.
 const PLACES = ['Полка', 'Кросс', 'ХО'];
 let currentSub = '';   // фильтр по подкатегории ('' = все)
@@ -1639,12 +1703,61 @@ async function pushUsersToCloud(){
   saveLocalUsers();
 }
 
+let catalogSyncing = false;
+let pendingCatalogWriteUntil = 0;
+async function pullCatalogFromCloud(){
+  if(!CLOUD_ENABLED || catalogSyncing) return;
+  catalogSyncing = true;
+  try{
+    const res = await fetch(`${FIREBASE_DB_URL}/config/catalog.json?_=${Date.now()}`, { cache:'no-store' });
+    if(res.ok && Date.now() > pendingCatalogWriteUntil){
+      const remote = normCatalog(await res.json());
+      if(remote && JSON.stringify(remote) !== JSON.stringify(catalogFromState())){
+        applyCatalog(remote);
+        saveLocalCatalog();
+        afterCatalogChange();
+      }
+    }
+  }catch(e){
+    console.error('[Я прикрою] Не удалось обновить список отделов:', e.message);
+  }
+  catalogSyncing = false;
+}
+async function pushCatalogToCloud(){
+  saveLocalCatalog();
+  if(!CLOUD_ENABLED) return true;
+  pendingCatalogWriteUntil = Date.now() + 5000;
+  try{
+    const res = await fetch(`${FIREBASE_DB_URL}/config/catalog.json`, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, cache:'no-store',
+      body: JSON.stringify(catalogFromState())
+    });
+    pendingCatalogWriteUntil = Date.now() + 1500;
+    return res.ok;
+  }catch(e){
+    console.error('[Я прикрою] Ошибка сохранения отделов:', e.message);
+    return false;
+  }
+}
+// Перерисовать всё после изменения списка отделов.
+function afterCatalogChange(){
+  DEPARTMENTS.forEach(d => ensureDeptShape(d.id));
+  if(!currentUser) return;
+  if(currentUser.role === 'admin') currentUser.departments = DEPARTMENTS.map(d => d.id);
+  const mine = DEPARTMENTS.filter(d => currentUser.departments.includes(d.id));
+  if(!mine.some(d => d.id === currentDept)){ currentDept = mine.length ? mine[0].id : null; currentSub = ''; currentPlace = ''; }
+  if(currentDept){ renderTabs(); renderGrid(); renderAlertBanner(); }
+  if(document.getElementById('adminModalOverlay')?.classList.contains('show') && !catalogDirty){ renderCatalogEditor(); renderAdminUserList(); }
+}
+
 function startCloudSync(){
   if(!CLOUD_ENABLED) return;
+  pullCatalogFromCloud();
   pullFromCloud(); // сразу при входе подтягиваем последние данные
   pullUsersFromCloud();
   if(cloudPollTimer) clearInterval(cloudPollTimer);
   cloudPollTimer = setInterval(() => {
+    pullCatalogFromCloud();
     pullFromCloud();
     pullUsersFromCloud();
   }, CLOUD_POLL_INTERVAL_MS);
@@ -2736,7 +2849,112 @@ function renderAdminUserList(){
   });
 }
 
+/* ---------------- АДМИН: ОТДЕЛЫ И ПОДКАТЕГОРИИ ---------------- */
+let catalogDraft = [];   // редактируемая копия: [{id, name, icon, isNew, subs:[{name, orig}]}]
+let catalogDirty = false;
+function startCatalogDraft(){
+  catalogDraft = catalogFromState().map(d => ({ ...d, isNew:false, subs: d.subs.map(n => ({ name:n, orig:n })) }));
+  catalogDirty = false;
+  document.getElementById('catalogMsg').textContent = '';
+}
+function productCount(deptId){ return (DB[deptId]?.products || []).length; }
+function renderCatalogEditor(){
+  const box = document.getElementById('catalogEditor');
+  box.innerHTML = '';
+  catalogDraft.forEach((d, di) => {
+    const card = document.createElement('div'); card.className = 'cat-dept';
+    const head = document.createElement('div'); head.className = 'cat-dept-head';
+    const nameIn = document.createElement('input'); nameIn.value = d.name; nameIn.placeholder = 'Название отдела';
+    nameIn.oninput = () => { d.name = nameIn.value; catalogDirty = true; };
+    const cnt = document.createElement('span'); cnt.className = 'cat-count';
+    cnt.textContent = d.isNew ? 'новый' : productCount(d.id) + ' тов.';
+    head.append(nameIn, cnt);
+    const subs = document.createElement('div'); subs.className = 'cat-subs';
+    d.subs.forEach((sObj, si) => {
+      const row = document.createElement('div'); row.className = 'cat-sub';
+      const sIn = document.createElement('input'); sIn.value = sObj.name; sIn.placeholder = 'Подкатегория';
+      sIn.oninput = () => { sObj.name = sIn.value; catalogDirty = true; };
+      const x = document.createElement('button'); x.className = 'cat-x'; x.type = 'button'; x.textContent = '✕'; x.title = 'Удалить подкатегорию';
+      x.onclick = () => {
+        const used = sObj.orig ? (DB[d.id]?.products || []).filter(p => p.sub === sObj.orig).length : 0;
+        if(used && !confirm(`В подкатегории «${sObj.orig}» ${used} тов. Удалить её? Товары останутся в отделе без подкатегории.`)) return;
+        d.subs.splice(si, 1); catalogDirty = true; renderCatalogEditor();
+      };
+      row.append(sIn, x); subs.appendChild(row);
+    });
+    const addSub = document.createElement('button'); addSub.className = 'cat-link'; addSub.type = 'button'; addSub.textContent = '+ подкатегория';
+    addSub.onclick = () => { d.subs.push({ name:'', orig:null }); catalogDirty = true; renderCatalogEditor(); const ins = box.querySelectorAll('.cat-dept')[di].querySelectorAll('.cat-sub input'); ins[ins.length-1]?.focus(); };
+    subs.appendChild(addSub);
+    const del = document.createElement('button'); del.className = 'cat-del'; del.type = 'button'; del.textContent = 'Удалить отдел';
+    del.onclick = () => {
+      const n = d.isNew ? 0 : productCount(d.id);
+      if(n){ alert(`В отделе «${d.name}» ${n} тов. Сначала удалите или перенесите товары, потом удаляйте отдел.`); return; }
+      if(catalogDraft.length === 1){ alert('Должен остаться хотя бы один отдел.'); return; }
+      if(!confirm(`Удалить отдел «${d.name || 'без названия'}»?`)) return;
+      catalogDraft.splice(di, 1); catalogDirty = true; renderCatalogEditor();
+    };
+    card.append(head, subs, del);
+    box.appendChild(card);
+  });
+}
+document.getElementById('catalogAddDeptBtn').onclick = () => {
+  catalogDraft.push({ id:'d_' + Date.now().toString(36) + Math.random().toString(36).slice(2,5), name:'', icon:'', isNew:true, subs:[] });
+  catalogDirty = true;
+  renderCatalogEditor();
+  const ins = document.querySelectorAll('#catalogEditor .cat-dept-head input');
+  ins[ins.length-1]?.focus();
+};
+document.getElementById('catalogSaveBtn').onclick = async () => {
+  const msg = document.getElementById('catalogMsg');
+  // Проверка
+  const names = catalogDraft.map(d => d.name.trim());
+  if(names.some(n => !n)){ msg.textContent = 'У каждого отдела должно быть название.'; return; }
+  if(new Set(names.map(n => n.toLowerCase())).size !== names.length){ msg.textContent = 'Названия отделов повторяются.'; return; }
+  for(const d of catalogDraft){
+    const sn = d.subs.map(s => s.name.trim()).filter(Boolean);
+    if(new Set(sn.map(n => n.toLowerCase())).size !== sn.length){ msg.textContent = `В отделе «${d.name.trim()}» повторяются подкатегории.`; return; }
+  }
+  // Переименования и удаления подкатегорий переносим на товары
+  const changedDepts = [];
+  catalogDraft.forEach(d => {
+    if(d.isNew) return;
+    ensureDeptShape(d.id);
+    const before = SUBCATS[d.id] || [];
+    const kept = d.subs.filter(s => s.orig);
+    const renames = {};
+    kept.forEach(s => { if(s.name.trim() && s.name.trim() !== s.orig) renames[s.orig] = s.name.trim(); });
+    const removed = before.filter(o => !kept.some(s => s.orig === o && s.name.trim()));
+    let touched = false;
+    DB[d.id].products.forEach(p => {
+      if(!p.sub) return;
+      if(renames[p.sub]){ p.sub = renames[p.sub]; touched = true; }
+      else if(removed.includes(p.sub)){ p.sub = ''; touched = true; }
+    });
+    if(touched) changedDepts.push(d.id);
+  });
+  applyCatalog(catalogDraft.map(d => ({
+    id: d.id,
+    name: d.name.trim(),
+    icon: d.icon && !d.isNew && d.name.trim() === (DEPARTMENTS.find(x => x.id === d.id)?.name) ? d.icon : makeDeptIcon(d.name),
+    subs: d.subs.map(s => s.name.trim()).filter(Boolean)
+  })));
+  const btn = document.getElementById('catalogSaveBtn');
+  btn.disabled = true; btn.textContent = 'Сохраняю...';
+  const ok = await pushCatalogToCloud();
+  for(const id of changedDepts) await saveDB(id);
+  saveLocalDB();
+  btn.disabled = false; btn.textContent = 'Сохранить отделы';
+  startCatalogDraft();
+  afterCatalogChange();
+  renderCatalogEditor();
+  renderAdminUserList();
+  msg.textContent = ok ? 'Сохранено. Изменения увидят все сотрудники.' : 'Сохранено на этом телефоне. В общую базу не ушло — нет связи.';
+  showToast(ok ? '✅ Отделы сохранены' : '⚠ Отделы сохранены только на этом устройстве', ok ? 'success' : 'error', 3000);
+};
+
 document.getElementById('adminBtn').onclick = () => {
+  startCatalogDraft();
+  renderCatalogEditor();
   renderAdminUserList();
   updateLastBackupInfo();
   document.getElementById('adminModalOverlay').classList.add('show');
@@ -3004,7 +3222,8 @@ function downloadBackup(){
     createdAt: new Date().toISOString(),
     createdBy: currentUser ? currentUser.login : 'unknown',
     departments: DB,
-    users: USERS
+    users: USERS,
+    catalog: catalogFromState()
   };
 
   const json = JSON.stringify(backup, null, 2);
@@ -3087,6 +3306,8 @@ document.getElementById('restoreConfirmBtn').onclick = async () => {
   try{
     // Приводим каждый отдел из файла к актуальному формату (на случай если
     // бэкап делался ещё со старой версией структуры данных).
+    const restoredCatalog = normCatalog(pendingRestoreData.catalog);
+    if(restoredCatalog){ applyCatalog(restoredCatalog); await pushCatalogToCloud(); }
     const restoredDB = {};
     DEPARTMENTS.forEach(d => {
       const value = pendingRestoreData.departments[d.id];
@@ -3198,6 +3419,7 @@ async function init(){
   // и только потом проверяем локальные. Это важно: если делать наоборот,
   // можно случайно затереть общую базу пустыми локальными данными.
   if(CLOUD_ENABLED){
+    await pullCatalogFromCloud();
     await pullFromCloud();
     await pullUsersFromCloud();
   }

@@ -4,7 +4,7 @@
 // Ключ сообщества хранится в секрете GitHub VK_TOKEN, в коде его нет.
 
 const FIREBASE_DB_URL = 'https://ya-prikroyu-default-rtdb.europe-west1.firebasedatabase.app';
-const DEPARTMENTS = {
+const DEFAULT_DEPARTMENTS = {
   drinks: 'Напитки', grocery: 'Бакалея', sof: 'СОФ',
   gastro1: 'Гастроном 1', gastro2: 'Гастроном 2', sweets: 'Кондитерские изделия',
 };
@@ -35,10 +35,10 @@ function line(p, days) {
   return `• ${p.name} — до ${fmt(p.date)} (${when})${tags ? ' · ' + tags : ''}${p.onPromo ? ' · на акции' : ''}`;
 }
 
-export function buildMessage(departments, today = todayLocal()) {
+export function buildMessage(departments, today = todayLocal(), names = DEFAULT_DEPARTMENTS) {
   const blocks = [];
   let total = 0;
-  for (const [id, title] of Object.entries(DEPARTMENTS)) {
+  for (const [id, title] of Object.entries(names)) {
     const node = departments?.[id];
     const products = Array.isArray(node) ? node : (Array.isArray(node?.products) ? node.products : []);
     const rows = products.filter(p => p && p.name && p.date)
@@ -84,7 +84,15 @@ async function main() {
   try { res = await fetch(`${FIREBASE_DB_URL}/departments.json`); }
   catch (e) { throw new Error(`Нет связи с общей базой Firebase: ${e.message}`); }
   if (!res.ok) throw new Error(`Общая база Firebase ответила ошибкой ${res.status}`);
-  const message = buildMessage(await res.json());
+  // Названия отделов — из списка, который админ правит в приложении.
+  let names = DEFAULT_DEPARTMENTS;
+  try {
+    const c = await (await fetch(`${FIREBASE_DB_URL}/config/catalog.json`)).json();
+    const list = Array.isArray(c) ? c : (c && typeof c === 'object' ? Object.values(c) : []);
+    const map = Object.fromEntries(list.filter(d => d && d.id && d.name).map(d => [d.id, d.name]));
+    if (Object.keys(map).length) names = map;
+  } catch (e) { /* остаются названия по умолчанию */ }
+  const message = buildMessage(await res.json(), todayLocal(), names);
   console.log(message);
   if (dryRun) return;
   if (!token) throw new Error('Нет секрета VK_TOKEN: добавьте ключ сообщества в Settings → Secrets and variables → Actions.');
