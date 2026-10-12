@@ -2073,6 +2073,7 @@ const lockError = document.getElementById('lockError');
 
 function renderLock(){
   lockError.innerHTML = '&nbsp;';
+  lockError.style.color = '';
   document.getElementById('loginInput').value = '';
   document.getElementById('passwordInput').value = '';
   lockOverlay.style.display = 'flex';
@@ -2094,6 +2095,7 @@ async function attemptLogin(){
   const login = document.getElementById('loginInput').value.trim();
   const password = document.getElementById('passwordInput').value;
 
+  lockError.style.color = '';
   if(!login || !password){
     lockError.textContent = 'Введите логин и пароль';
     return;
@@ -3354,6 +3356,7 @@ document.getElementById('sendAccessRequestBtn').onclick = async () => {
     document.getElementById('accessRequestOverlay').classList.remove('show');
     ['req_name','req_contact','req_comment'].forEach(id => document.getElementById(id).value = '');
     lockError.textContent = '✅ Запрос отправлен. Администратор свяжется с вами.';
+    lockError.style.color = 'var(--green)';
   }catch(e){
     msg.textContent = 'Не удалось отправить: нет связи с общей базой. Попробуйте позже.';
   }
