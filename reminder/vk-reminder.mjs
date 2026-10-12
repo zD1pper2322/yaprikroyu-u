@@ -62,7 +62,9 @@ export function buildMessage(departments, today = todayLocal()) {
 
 async function vk(method, params) {
   const body = new URLSearchParams({ ...params, access_token: token, v: VK_V });
-  const res = await fetch(`https://api.vk.com/method/${method}`, { method: 'POST', body });
+  let res;
+  try { res = await fetch(`https://api.vk.com/method/${method}`, { method: 'POST', body }); }
+  catch (e) { throw new Error(`Нет связи с ВКонтакте: ${e.message}`); }
   const json = await res.json();
   if (json.error) throw new Error(`VK ${method}: ${json.error.error_code} ${json.error.error_msg}`);
   return json.response;
@@ -78,8 +80,10 @@ function chunks(text, max = 3900) {
 }
 
 async function main() {
-  const res = await fetch(`${FIREBASE_DB_URL}/departments.json`);
-  if (!res.ok) throw new Error(`Firebase: ${res.status}`);
+  let res;
+  try { res = await fetch(`${FIREBASE_DB_URL}/departments.json`); }
+  catch (e) { throw new Error(`Нет связи с общей базой Firebase: ${e.message}`); }
+  if (!res.ok) throw new Error(`Общая база Firebase ответила ошибкой ${res.status}`);
   const message = buildMessage(await res.json());
   console.log(message);
   if (dryRun) return;
@@ -97,5 +101,9 @@ async function main() {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch(e => { console.error(e.message); process.exit(1); });
+  main().catch(e => {
+    // ::error:: показывает причину прямо на странице запуска в GitHub
+    console.log(`::error title=Напоминание не отправлено::${String(e.message).replace(/\n/g, ' ')}`);
+    process.exit(1);
+  });
 }
