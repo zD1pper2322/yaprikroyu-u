@@ -944,6 +944,28 @@
   .lock-box h2{font-family:'Archivo Black',sans-serif; font-size:18px; margin:0 0 6px;}
   .lock-box p{color:var(--text-dim); font-size:12.5px; margin:0 0 20px;}
   .lock-request-link{margin-top:16px; background:none; border:none; color:var(--amber); font-family:'Inter',sans-serif; font-size:13px; font-weight:600; cursor:pointer; text-decoration:underline; text-underline-offset:3px;}
+  [hidden]{display:none !important;}
+  .lock-chat-btn{position:relative; margin-top:12px; width:100%; padding:12px; border-radius:10px; border:1.5px solid var(--amber); background:transparent; color:var(--amber); font-family:'Inter',sans-serif; font-size:14px; font-weight:700; cursor:pointer;}
+  .chat-dot{display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--red); margin-left:8px; vertical-align:middle;}
+  .chat-modal{display:flex; flex-direction:column; max-height:min(86vh, 720px);}
+  .chat-list{flex:1; min-height:180px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding:10px; background:#00000008; border-radius:12px;}
+  .chat-msg{max-width:82%; padding:8px 11px; border-radius:12px; font-size:14px; line-height:1.4; white-space:pre-wrap; overflow-wrap:anywhere; color:var(--bg-deep);}
+  .chat-msg small{display:block; font-size:10.5px; opacity:.55; margin-top:3px;}
+  .chat-msg.me{align-self:flex-end; background:var(--amber); border-bottom-right-radius:4px;}
+  .chat-msg.them{align-self:flex-start; background:#fff; border:1px solid #00000012; border-bottom-left-radius:4px;}
+  .chat-msg.sys{align-self:center; background:transparent; color:#777; font-size:12px; text-align:center;}
+  .chat-compose{display:flex; gap:8px; margin-top:10px; align-items:flex-end;}
+  .chat-compose textarea{flex:1; min-width:0; resize:none; padding:11px 12px; border-radius:10px; border:1.5px solid #00000018; font-family:'Inter',sans-serif; font-size:15px; color:var(--bg-deep); background:#fff; outline:none; max-height:120px;}
+  .chat-compose textarea:focus{border-color:var(--amber);}
+  .chat-send{width:46px; height:46px; flex-shrink:0; border-radius:10px; border:none; background:var(--bg-deep); color:var(--paper); font-size:18px; cursor:pointer;}
+  .chat-send:disabled{opacity:.5;}
+  .chat-admin-actions{display:flex; gap:8px; margin-top:10px;}
+  .chat-admin-actions button{flex:1; border:none; border-radius:8px; padding:10px; font-weight:700; font-size:12.5px; cursor:pointer;}
+  .req-row .req-last{font-size:12.5px; color:var(--bg-deep); background:#ffffffaa; border-radius:8px; padding:6px 8px; overflow-wrap:anywhere;}
+  .req-row.unread{border-color:var(--red); box-shadow:0 0 0 1px var(--red) inset;}
+  .req-status{display:inline-block; font-size:10.5px; font-weight:800; padding:1px 6px; border-radius:5px; margin-left:6px; vertical-align:middle;}
+  .req-status.done{background:var(--green-dim); color:#2d6b42;}
+  .req-status.new{background:var(--red-dim); color:#a33;}
   .req-row{background:#fff7e8; border:1px solid #e8a23d55; border-radius:12px; padding:10px 12px; display:flex; flex-direction:column; gap:4px;}
   .req-row .req-name{font-weight:700; font-size:13.5px; color:var(--bg-deep);}
   .req-row .req-meta{font-size:12px; color:#6a6a6a; overflow-wrap:anywhere;}
@@ -1030,6 +1052,25 @@
     </div>
     <button class="modal-submit" id="loginSubmitBtn" style="background:var(--amber); color:var(--bg-deep);">Войти</button>
     <button type="button" class="lock-request-link" id="openAccessRequestBtn">Нет доступа? Запросить у администратора</button>
+    <button type="button" class="lock-chat-btn" id="openMyChatBtn" hidden>💬 Чат с администратором<span class="chat-dot" id="myChatDot" hidden></span></button>
+  </div>
+</div>
+
+<!-- ============ ЧАТ ПОДДЕРЖКИ ============ -->
+<div class="modal-overlay" id="chatOverlay" style="z-index:310;">
+  <div class="modal chat-modal">
+    <button class="modal-close" id="closeChat">✕</button>
+    <h2 id="chatTitle">Чат с администратором</h2>
+    <p class="sub" id="chatSub"></p>
+    <div class="chat-list" id="chatList"></div>
+    <div class="chat-compose">
+      <textarea id="chatInput" rows="1" placeholder="Сообщение..." maxlength="500"></textarea>
+      <button class="chat-send" id="chatSendBtn" title="Отправить">➤</button>
+    </div>
+    <div class="chat-admin-actions" id="chatAdminActions" hidden>
+      <button class="req-ok" id="chatCreateUserBtn">Создать сотрудника</button>
+      <button class="req-no" id="chatDeleteBtn">Удалить переписку</button>
+    </div>
   </div>
 </div>
 
@@ -1226,7 +1267,7 @@
     <h2>Сотрудники и доступ</h2>
     <p class="sub">Создавайте логины для сотрудников и назначайте им отделы</p>
     <div id="accessRequestsBox" hidden style="margin-bottom:16px;">
-      <h4 style="font-size:13px; text-transform:uppercase; letter-spacing:.4px; color:#a33; margin:0 0 8px;">Запросы доступа</h4>
+      <h4 style="font-size:13px; text-transform:uppercase; letter-spacing:.4px; color:#a33; margin:0 0 8px;">Запросы доступа и чат</h4>
       <div id="accessRequestsList" style="display:flex; flex-direction:column; gap:8px;"></div>
     </div>
     <button class="modal-submit" id="addUserBtn" style="background:var(--amber); color:var(--bg-deep); margin-bottom:16px;">+ Новый сотрудник</button>
@@ -3298,22 +3339,48 @@ document.getElementById('saveUserBtn').onclick = async () => {
   document.getElementById('userEditModalOverlay').classList.remove('show');
   renderAdminUserList();
   if(fromRequestId && !editingUserId){
-    await deleteAccessRequest(fromRequestId);
-    showToast('✅ Сотрудник создан. Передайте ему логин и пароль по указанному контакту', 'success', 5000);
+    await finishRequestWithCredentials(fromRequestId, login, password);
   }
   fromRequestId = null;
 };
 
-/* ---------------- ЗАПРОСЫ ДОСТУПА ----------------
-   Человек без логина оставляет запрос на экране входа. Запрос попадает
-   в общую базу (/requests). Админ видит его в 👤 и может сразу создать
-   сотрудника. Уведомление админу во ВКонтакте отправляет GitHub
-   (reminder/access-requests.mjs). */
+/* ---------------- ЗАПРОСЫ ДОСТУПА И ЧАТ ПОДДЕРЖКИ ----------------
+   Человек без логина оставляет запрос на экране входа — и сразу попадает
+   в чат с администратором. Переписка хранится в общей базе:
+     /requests/<id> = { name, depts, contact, comment, ts, status, notified,
+                        messages: { <id>: { from:'user'|'admin', text, ts } } }
+   Телефон запомнит свой запрос и покажет кнопку «Чат с администратором».
+   Админ видит все запросы в 👤 и отвечает там же. Когда админ создаёт
+   сотрудника из запроса, логин и пароль сами отправляются в чат.
+   Уведомления админу во ВКонтакте отправляет GitHub (reminder/access-requests.mjs). */
 const REQ_SENT_KEY = 'ya_prikroyu_req_sent_v1';
-let ACCESS_REQUESTS = []; // [{id, name, depts:[], contact, comment, ts}]
+const MY_REQ_KEY = 'ya_prikroyu_my_request_v1';     // id своего запроса (у того, кто просил доступ)
+const CHAT_SEEN_KEY = 'ya_prikroyu_chat_seen_v1';    // { requestId: ts последнего прочитанного }
+let ACCESS_REQUESTS = []; // [{id, name, depts, contact, comment, ts, status, messages:[...] }]
 let fromRequestId = null; // запрос, из которого сейчас создаётся сотрудник
+let chatRequestId = null; // открытый чат
+let chatRole = null;      // 'user' | 'admin'
+let chatTimer = null;
+let myChatTimer = null;
 
+function myRequestId(){ try{ return localStorage.getItem(MY_REQ_KEY) || ''; }catch(e){ return ''; } }
+function chatSeen(){ return readJSON(CHAT_SEEN_KEY, {}); }
+function markChatSeen(id, ts){ const v = chatSeen(); v[id] = Math.max(v[id] || 0, ts || Date.now()); writeJSON(CHAT_SEEN_KEY, v); }
+function normRequest(id, r){
+  if(!r || typeof r !== 'object' || !r.name) return null;
+  const messages = Object.entries(r.messages || {})
+    .filter(([, m]) => m && typeof m.text === 'string')
+    .map(([mid, m]) => ({ id: mid, from: m.from === 'admin' ? 'admin' : 'user', text: String(m.text).slice(0, 1000), ts: Number(m.ts) || 0 }))
+    .sort((x, y) => x.ts - y.ts);
+  return { id, name: String(r.name).slice(0, 60), depts: asList(r.depts).map(String), contact: String(r.contact || '').slice(0, 80),
+           comment: String(r.comment || '').slice(0, 120), ts: Number(r.ts) || 0, status: r.status === 'done' ? 'done' : 'open', messages };
+}
+function deptNamesOf(ids){ return ids.map(id => DEPARTMENTS.find(d => d.id === id)?.name).filter(Boolean).join(', ') || 'отдел не указан'; }
+function fmtTime(ts){ return ts ? new Date(ts).toLocaleString('ru-RU', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : ''; }
+
+/* ---- форма запроса ---- */
 function openAccessRequest(){
+  if(myRequestId()){ openMyChat(); return; }
   const list = document.getElementById('reqDeptList');
   list.innerHTML = '';
   DEPARTMENTS.forEach(d => {
@@ -3340,67 +3407,189 @@ document.getElementById('sendAccessRequestBtn').onclick = async () => {
   if(!name){ msg.textContent = 'Укажите имя.'; return; }
   try{
     const last = Number(localStorage.getItem(REQ_SENT_KEY) || 0);
-    if(Date.now() - last < 10 * 60000){ msg.textContent = 'Запрос уже отправлен. Повторно можно через 10 минут.'; return; }
+    if(Date.now() - last < 10 * 60000 && myRequestId()){ msg.textContent = 'Запрос уже отправлен — откройте чат с администратором.'; return; }
   }catch(e){}
   if(!CLOUD_ENABLED){ msg.textContent = 'Запросы не настроены: нет общей базы. Обратитесь к администратору лично.'; return; }
   const btn = document.getElementById('sendAccessRequestBtn');
   btn.disabled = true; btn.textContent = 'Отправляю...';
   try{
+    const now = Date.now();
+    const text = `Здравствуйте! Прошу выдать доступ${depts.length ? ' к отделам: ' + deptNamesOf(depts) : ''}.${comment ? '\n' + comment : ''}${contact ? '\nСвязь: ' + contact : ''}`;
     const res = await fetch(`${FIREBASE_DB_URL}/requests.json`, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ name, depts, contact, comment, ts: Date.now(), notified: false })
+      body: JSON.stringify({ name, depts, contact, comment, ts: now, status:'open', notified:false,
+                             messages: { m0: { from:'user', text, ts: now } } })
     });
     if(!res.ok) throw new Error(String(res.status));
-    try{ localStorage.setItem(REQ_SENT_KEY, String(Date.now())); }catch(e){}
-    msg.textContent = '';
+    const { name: rid } = await res.json();
+    try{ localStorage.setItem(REQ_SENT_KEY, String(now)); localStorage.setItem(MY_REQ_KEY, rid); }catch(e){}
+    markChatSeen(rid, now);
     document.getElementById('accessRequestOverlay').classList.remove('show');
     ['req_name','req_contact','req_comment'].forEach(id => document.getElementById(id).value = '');
-    lockError.textContent = '✅ Запрос отправлен. Администратор свяжется с вами.';
+    lockError.textContent = '✅ Запрос отправлен. Ответ администратора придёт в чат.';
     lockError.style.color = 'var(--green)';
+    updateMyChatButton();
+    openMyChat();
   }catch(e){
     msg.textContent = 'Не удалось отправить: нет связи с общей базой. Попробуйте позже.';
   }
   btn.disabled = false; btn.textContent = 'Отправить запрос';
 };
 
+/* ---- чат: общий для обеих сторон ---- */
+async function fetchRequest(id){
+  const res = await fetch(`${FIREBASE_DB_URL}/requests/${encodeURIComponent(id)}.json?_=${Date.now()}`, { cache:'no-store' });
+  if(!res.ok) throw new Error(String(res.status));
+  return normRequest(id, await res.json());
+}
+function renderChat(req){
+  const list = document.getElementById('chatList');
+  const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
+  list.innerHTML = '';
+  if(!req){
+    const el = document.createElement('div'); el.className = 'chat-msg sys';
+    el.textContent = chatRole === 'user' ? 'Администратор закрыл этот запрос. Если доступ всё ещё нужен — отправьте новый запрос.' : 'Переписка удалена.';
+    list.appendChild(el);
+    document.getElementById('chatInput').disabled = true;
+    document.getElementById('chatSendBtn').disabled = true;
+    return;
+  }
+  document.getElementById('chatInput').disabled = false;
+  document.getElementById('chatSendBtn').disabled = false;
+  if(chatRole === 'admin'){
+    document.getElementById('chatTitle').textContent = req.name;
+    document.getElementById('chatSub').textContent = `${deptNamesOf(req.depts)}${req.contact ? ' · ' + req.contact : ''}${req.status === 'done' ? ' · доступ выдан' : ''}`;
+  } else {
+    document.getElementById('chatTitle').textContent = 'Чат с администратором';
+    document.getElementById('chatSub').textContent = req.status === 'done' ? 'Доступ выдан — логин и пароль в сообщениях ниже.' : 'Администратор ответит здесь. Чат можно закрыть и открыть позже кнопкой на экране входа.';
+  }
+  req.messages.forEach(m => {
+    const mine = (chatRole === 'admin') === (m.from === 'admin');
+    const el = document.createElement('div'); el.className = 'chat-msg ' + (mine ? 'me' : 'them');
+    el.textContent = m.text;
+    const t = document.createElement('small'); t.textContent = (m.from === 'admin' ? 'Администратор' : req.name) + ' · ' + fmtTime(m.ts);
+    el.appendChild(t); list.appendChild(el);
+  });
+  if(atBottom || !list.dataset.rendered){ list.scrollTop = list.scrollHeight; list.dataset.rendered = '1'; }
+  const lastTs = req.messages.length ? req.messages[req.messages.length - 1].ts : req.ts;
+  markChatSeen(req.id, lastTs);
+}
+async function refreshChat(){
+  if(!chatRequestId) return;
+  try{
+    const req = await fetchRequest(chatRequestId);
+    renderChat(req);
+    if(!req && chatRole === 'user'){ try{ localStorage.removeItem(MY_REQ_KEY); }catch(e){} updateMyChatButton(); }
+  }catch(e){
+    document.getElementById('chatSub').textContent = '📴 Нет связи — сообщения обновятся, когда появится сеть.';
+  }
+}
+function openChat(id, role){
+  chatRequestId = id; chatRole = role;
+  document.getElementById('chatList').innerHTML = '<div class="chat-msg sys">Загружаю...</div>';
+  delete document.getElementById('chatList').dataset.rendered;
+  document.getElementById('chatAdminActions').hidden = role !== 'admin';
+  document.getElementById('chatOverlay').classList.add('show');
+  refreshChat();
+  clearInterval(chatTimer);
+  chatTimer = setInterval(refreshChat, 5000);
+}
+function closeChat(){
+  document.getElementById('chatOverlay').classList.remove('show');
+  clearInterval(chatTimer); chatTimer = null; chatRequestId = null;
+  updateMyChatButton();
+  if(currentUser && currentUser.role === 'admin') pullAccessRequests();
+}
+document.getElementById('closeChat').onclick = closeChat;
+document.getElementById('chatOverlay').onclick = e => { if(e.target.id === 'chatOverlay') closeChat(); };
+
+async function sendChatMessage(text, role, rid){
+  const res = await fetch(`${FIREBASE_DB_URL}/requests/${encodeURIComponent(rid)}/messages.json`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ from: role, text, ts: Date.now() })
+  });
+  if(!res.ok) throw new Error(String(res.status));
+}
+document.getElementById('chatSendBtn').onclick = async () => {
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if(!text || !chatRequestId) return;
+  const btn = document.getElementById('chatSendBtn');
+  btn.disabled = true;
+  try{
+    await sendChatMessage(text, chatRole, chatRequestId);
+    input.value = ''; input.style.height = '';
+    await refreshChat();
+    document.getElementById('chatList').scrollTop = 1e9;
+  }catch(e){
+    showToast('📴 Не отправлено: нет связи с общей базой', 'error', 3000);
+  }
+  btn.disabled = false;
+  input.focus();
+};
+document.getElementById('chatInput').addEventListener('input', e => { e.target.style.height = ''; e.target.style.height = Math.min(120, e.target.scrollHeight) + 'px'; });
+document.getElementById('chatInput').addEventListener('keydown', e => {
+  if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); document.getElementById('chatSendBtn').click(); }
+});
+
+/* ---- сторона того, кто просит доступ ---- */
+function openMyChat(){ const id = myRequestId(); if(id) openChat(id, 'user'); }
+document.getElementById('openMyChatBtn').onclick = openMyChat;
+async function updateMyChatButton(){
+  const id = myRequestId();
+  const btn = document.getElementById('openMyChatBtn');
+  btn.hidden = !id;
+  document.getElementById('openAccessRequestBtn').hidden = !!id;
+  if(!id){ document.getElementById('myChatDot').hidden = true; return; }
+  try{
+    const req = await fetchRequest(id);
+    if(!req){ localStorage.removeItem(MY_REQ_KEY); btn.hidden = true; document.getElementById('openAccessRequestBtn').hidden = false; return; }
+    const lastAdmin = req.messages.filter(m => m.from === 'admin').pop();
+    document.getElementById('myChatDot').hidden = !(lastAdmin && lastAdmin.ts > (chatSeen()[id] || 0));
+  }catch(e){}
+}
+// Пока открыт экран входа — проверяем ответы администратора.
+updateMyChatButton();
+myChatTimer = setInterval(() => { if(lockOverlay.style.display !== 'none') updateMyChatButton(); }, 15000);
+
+/* ---- сторона администратора ---- */
 async function pullAccessRequests(){
   if(!CLOUD_ENABLED || !currentUser || currentUser.role !== 'admin') return;
   try{
     const res = await fetch(`${FIREBASE_DB_URL}/requests.json?_=${Date.now()}`, { cache:'no-store' });
     if(!res.ok) return;
     const raw = (await res.json()) || {};
-    ACCESS_REQUESTS = Object.entries(raw)
-      .filter(([, r]) => r && typeof r === 'object' && r.name)
-      .map(([id, r]) => ({ id, name:String(r.name).slice(0,60), depts: asList(r.depts).map(String), contact:String(r.contact || '').slice(0,80), comment:String(r.comment || '').slice(0,120), ts:Number(r.ts) || 0 }))
-      .sort((a,b) => b.ts - a.ts);
+    ACCESS_REQUESTS = Object.entries(raw).map(([id, r]) => normRequest(id, r)).filter(Boolean)
+      .sort((a, b) => lastActivity(b) - lastActivity(a));
     renderAccessRequests();
   }catch(e){}
 }
+function lastActivity(r){ return r.messages.length ? r.messages[r.messages.length - 1].ts : r.ts; }
+function isUnreadForAdmin(r){
+  const lastUser = r.messages.filter(m => m.from === 'user').pop();
+  return !!lastUser && lastUser.ts > (chatSeen()[r.id] || 0);
+}
 function renderAccessRequests(){
+  const unread = ACCESS_REQUESTS.filter(isUnreadForAdmin).length;
   const badge = document.getElementById('adminBadge');
-  badge.hidden = !ACCESS_REQUESTS.length;
-  badge.textContent = ACCESS_REQUESTS.length;
+  badge.hidden = !unread;
+  badge.textContent = unread;
   const box = document.getElementById('accessRequestsBox');
   const list = document.getElementById('accessRequestsList');
   box.hidden = !ACCESS_REQUESTS.length;
   list.innerHTML = '';
   ACCESS_REQUESTS.forEach(r => {
-    const deptNames = r.depts.map(id => DEPARTMENTS.find(d => d.id === id)?.name).filter(Boolean).join(', ') || 'отдел не указан';
-    const when = r.ts ? new Date(r.ts).toLocaleString('ru-RU', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
-    const row = document.createElement('div'); row.className = 'req-row';
-    row.innerHTML = `<div class="req-name"></div><div class="req-meta"></div><div class="req-meta"></div><div class="req-actions"><button class="req-ok">Создать сотрудника</button><button class="req-no">Отклонить</button></div>`;
-    row.querySelector('.req-name').textContent = r.name;
-    const metas = row.querySelectorAll('.req-meta');
-    metas[0].textContent = `${deptNames} · ${when}`;
-    metas[1].textContent = `Связь: ${r.contact || 'не указана'}${r.comment ? ' · ' + r.comment : ''}`;
-    row.querySelector('.req-ok').onclick = () => {
-      fromRequestId = r.id;
-      openUserEditModal(null);
-      document.getElementById('f_user_name').value = r.name;
-      renderDeptCheckboxes(r.depts.filter(id => DEPARTMENTS.some(d => d.id === id)));
-    };
+    const row = document.createElement('div'); row.className = 'req-row' + (isUnreadForAdmin(r) ? ' unread' : '');
+    row.innerHTML = `<div class="req-name"></div><div class="req-meta"></div><div class="req-last"></div><div class="req-actions"><button class="req-ok">💬 Открыть чат</button><button class="req-no">Удалить</button></div>`;
+    const nm = row.querySelector('.req-name'); nm.textContent = r.name;
+    const st = document.createElement('span'); st.className = 'req-status ' + (r.status === 'done' ? 'done' : 'new'); st.textContent = r.status === 'done' ? 'доступ выдан' : 'ждёт';
+    nm.appendChild(st);
+    row.querySelector('.req-meta').textContent = `${deptNamesOf(r.depts)} · ${fmtTime(lastActivity(r))}`;
+    const last = r.messages[r.messages.length - 1];
+    row.querySelector('.req-last').textContent = last ? `${last.from === 'admin' ? 'Вы: ' : ''}${last.text.slice(0, 120)}` : '';
+    row.querySelector('.req-ok').onclick = () => openChat(r.id, 'admin');
     row.querySelector('.req-no').onclick = async () => {
-      if(!confirm(`Отклонить запрос от «${r.name}»?`)) return;
+      if(!confirm(`Удалить запрос и переписку с «${r.name}»?`)) return;
       await deleteAccessRequest(r.id);
     };
     list.appendChild(row);
@@ -3410,6 +3599,36 @@ async function deleteAccessRequest(id){
   ACCESS_REQUESTS = ACCESS_REQUESTS.filter(x => x.id !== id);
   renderAccessRequests();
   try{ await fetch(`${FIREBASE_DB_URL}/requests/${encodeURIComponent(id)}.json`, { method:'DELETE' }); }catch(e){}
+}
+document.getElementById('chatCreateUserBtn').onclick = async () => {
+  const r = ACCESS_REQUESTS.find(x => x.id === chatRequestId) || await fetchRequest(chatRequestId).catch(() => null);
+  if(!r) return;
+  closeChat();
+  fromRequestId = r.id;
+  openUserEditModal(null);
+  document.getElementById('f_user_name').value = r.name;
+  renderDeptCheckboxes(r.depts.filter(id => DEPARTMENTS.some(d => d.id === id)));
+};
+document.getElementById('chatDeleteBtn').onclick = async () => {
+  if(!chatRequestId || !confirm('Удалить запрос и всю переписку?')) return;
+  const id = chatRequestId;
+  closeChat();
+  await deleteAccessRequest(id);
+};
+// Сотрудник создан из запроса — отправить данные для входа в чат.
+async function finishRequestWithCredentials(rid, login, password){
+  const text = `Готово! Доступ выдан.\nЛогин: ${login}\nПароль: ${password}\nВведите их на экране входа.`;
+  try{
+    await sendChatMessage(text, 'admin', rid);
+    await fetch(`${FIREBASE_DB_URL}/requests/${encodeURIComponent(rid)}.json`, {
+      method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status:'done' })
+    });
+    showToast('✅ Сотрудник создан, логин и пароль отправлены в чат', 'success', 4000);
+  }catch(e){
+    showToast('⚠ Сотрудник создан, но отправить данные в чат не удалось — передайте их сами', 'error', 5000);
+  }
+  pullAccessRequests();
+  openChat(rid, 'admin'); // показать админу переписку с отправленными данными
 }
 
 /* ---------------- СТАТИСТИКА ---------------- */
