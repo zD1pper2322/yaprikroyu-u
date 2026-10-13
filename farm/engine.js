@@ -246,7 +246,10 @@ const Engine = {
     if(Art.inView(Art.P(9.8 * T, -3.6 * T), view, 260)) Art.farmhouse(c, time);
     if(Art.inView(Art.P(2 * T, -2 * T), view, 200)) Art.silo(c);
     const bp = Boat.pos(st);
-    if(bp){ const q = Art.P(bp.x, bp.y); Art.boat(c, q.x, q.y, time, bp.docked ? st.boat.crates : []); }
+    if(bp){
+      const q = Art.P(bp.x, bp.y), k = bp.far ? 0.55 : 1;
+      c.save(); c.translate(q.x, q.y); c.scale(k, k); Art.boat(c, 0, 0, time, bp.docked ? st.boat.crates : []); c.restore();
+    }
     Art.fenceLine(c, 0, 0, W, 0); Art.fenceLine(c, 0, 0, 0, H, [5.8 * T, 8.2 * T]);
     // 3) вертикальные объекты по глубине (дальше — раньше)
     const items = [], overlays = [];
@@ -313,6 +316,10 @@ const Engine = {
     // сундук
     if(st.chest){ const ch = st.chest; add((ch.gx + ch.gy + 1) * T, () => Art.chest(c, (ch.gx + 0.5) * T, (ch.gy + 0.5) * T, time), 'chest'); }
     // значок над кораблём
+    if(bp && !this.visit && (bp.locked || bp.far)){
+      const q = Art.P(bp.x, bp.y);
+      ovl(() => Art.bubble(c, q.x + (bp.far ? 20 : 40), q.y - (bp.far ? 76 : 130), bp.locked ? '🔒' : '⏳', { r: 13, bg: '#ffffffcc' }), 'boat');
+    }
     if(bp && bp.docked && !this.visit){
       const can = st.boat.crates.some(cr => !cr.done && have(cr.item) >= cr.n), q = Art.P(bp.x, bp.y);
       ovl(() => Art.bubble(c, q.x + 40, q.y - 130, can ? '📦' : '⛵', { r: can ? 17 : 13, bg: can ? '#fffdf6' : '#ffffffcc' }), 'boat');

@@ -194,9 +194,12 @@ const Boat = {
   // положение для отрисовки: стоит у причала, приплывает или уплывает
   pos(st = S){
     const s = this.state(st);
+    if(s === 'locked') return { x: BOAT_SPOT.x, y: BOAT_SPOT.y, locked: true };    // стоит у причала и ждёт 4-го уровня
     if(s === 'docked') return { x: BOAT_SPOT.x, y: BOAT_SPOT.y, docked: true };
     if(s === 'sailing' && st.boat.arrive - now() < 4000){ const k = (st.boat.arrive - now()) / 4000; return { x: BOAT_SPOT.x, y: BOAT_SPOT.y - k * k * 9 * TILE }; }
     if(st.boatLeft && now() - st.boatLeft < 4000){ const k = (now() - st.boatLeft) / 4000; return { x: BOAT_SPOT.x, y: BOAT_SPOT.y - k * k * 9 * TILE }; }
+    // в море: маленький кораблик вдали, видно, что он плывёт обратно
+    if(s === 'sailing') return { x: BOAT_SPOT.x - 1.2 * TILE + Math.sin(now() / 9000) * 0.8 * TILE, y: BOAT_SPOT.y - 7.6 * TILE, far: true };
     return null;
   },
 };
