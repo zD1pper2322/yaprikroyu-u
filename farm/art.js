@@ -551,6 +551,26 @@ const Art = {
         if(stage === 3){ ctx.fillStyle = '#f08b1c'; ctx.beginPath(); ctx.ellipse(x + 3, y - 4, 8, 6, 0, 0, 7); ctx.fill(); ctx.strokeStyle = '#c96a10'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(x + 3, y - 10); ctx.lineTo(x + 3, y + 2); ctx.stroke(); }
         break;
       }
+      case 'rice': {
+        ctx.strokeStyle = stage === 3 ? '#c9b458' : '#7cb342'; ctx.lineWidth = 1.8;
+        for(let s2 = -2; s2 <= 2; s2++){ ctx.beginPath(); ctx.moveTo(x + s2 * 2, y); ctx.quadraticCurveTo(x + s2 * 3, y - 14 * k, x + s2 * 5 + 3, y - 20 * k); ctx.stroke(); }
+        if(stage === 3){ ctx.fillStyle = '#f3e3a0'; for(let s2 = -2; s2 <= 2; s2++){ ctx.beginPath(); ctx.ellipse(x + s2 * 5 + 3, y - 20, 1.8, 3, 0.4, 0, 7); ctx.fill(); } }
+        break;
+      }
+      case 'onion': case 'lettuce': {
+        if(kind === 'lettuce'){ ctx.fillStyle = '#5cbf45'; ctx.beginPath(); ctx.arc(x, y - 6 * k, 9 * k, 0, 7); ctx.fill(); ctx.fillStyle = '#9be36a'; ctx.beginPath(); ctx.arc(x - 2, y - 8 * k, 5 * k, 0, 7); ctx.fill(); if(stage === 3){ ctx.strokeStyle = '#3f9a32'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y - 6, 6, 0, 7); ctx.stroke(); } }
+        else { ctx.strokeStyle = '#4caf3a'; ctx.lineWidth = 2.2; for(let s2 = -1; s2 <= 1; s2++){ ctx.beginPath(); ctx.moveTo(x + s2 * 2, y - 2); ctx.lineTo(x + s2 * 4, y - 20 * k); ctx.stroke(); } if(stage === 3){ ctx.fillStyle = '#c77dbe'; ctx.beginPath(); ctx.ellipse(x, y, 6, 5, 0, 0, 7); ctx.fill(); ctx.fillStyle = '#e3b5dd'; ctx.beginPath(); ctx.arc(x - 2, y - 1, 1.6, 0, 7); ctx.fill(); } }
+        break;
+      }
+      default: {
+        // кустик с плодами: розы, яблоки, лимоны, кофе
+        const fruit = { rose: '#e53950', apple: '#d32f2f', lemon: '#fdd835', coffee: '#8d3b1f' }[kind] || '#e5533d';
+        const tall = kind === 'apple' || kind === 'lemon' ? 1.3 : 1;
+        if(tall > 1){ ctx.fillStyle = '#7a4a24'; ctx.fillRect(x - 1.5, y - 14 * k, 3, 14 * k); }
+        ctx.fillStyle = '#2f8a34'; ctx.beginPath(); ctx.arc(x, y - 12 * k * tall, 10 * k, 0, 7); ctx.fill();
+        ctx.fillStyle = '#4caf3a'; ctx.beginPath(); ctx.arc(x - 3, y - 14 * k * tall, 6 * k, 0, 7); ctx.fill();
+        if(stage === 3){ ctx.fillStyle = fruit; [[-5, -12], [4, -16], [2, -8], [-2, -18]].forEach(([dx, dy]) => { ctx.beginPath(); ctx.arc(x + dx, y + dy * tall, kind === 'coffee' ? 2.2 : 3, 0, 7); ctx.fill(); }); }
+      }
     }
   },
 

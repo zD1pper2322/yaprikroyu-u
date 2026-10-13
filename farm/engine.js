@@ -10,6 +10,7 @@ const Engine = {
   gesture: null,        // { type:'pan'|'pinch'|'press'|'move', ... }
   tool: null,           // { kind:'seed'|'sickle'|'feed', crop, hk, used, origin }
   moving: null,         // { key, w, h, gx, gy, ox, oy, ok }
+  placing: null,        // покупка из магазина: { type, kind, w, h, gx, gy, ok }
   animals: new Map(),   // позиции животных для анимации
   parts: [],            // частицы (зёрна, монеты, искры)
   pulses: new Map(),    // «пружинка» построек при нажатии
@@ -327,11 +328,27 @@ const Engine = {
     // 4) передний забор
     Art.fenceLine(c, 0, H, W, H); Art.fenceLine(c, W, 0, W, H);
     Art.drawTrees(c, Art.scenery.front, time, view);
+    if(this.placing) this.drawGhost(c, time);
     const bob = Math.sin(time * 3) * 3;
     c.save(); c.translate(0, bob); overlays.forEach(f => f.fn()); c.restore();
     this.drawParts(c, this.dt);
     // для точных нажатий: запоминаем, что и в каком порядке нарисовано
     this.scene = { items, overlays: overlays.slice(0, ovN), bob, setCtx: v => { c = v; }, objs };
+  },
+  drawGhost(c, time){
+    const p = this.placing, T = TILE, x = p.gx * T, y = p.gy * T, w = p.w * T, h = p.h * T;
+    const q = [Art.P(x, y), Art.P(x + w, y), Art.P(x + w, y + h), Art.P(x, y + h)];
+    Art.poly(c, q, p.ok ? '#5cff5c55' : '#ff4a3a66', p.ok ? '#2e9e2e' : '#c62828', 3);
+    c.save(); c.globalAlpha = 0.85;
+    if(p.type === 'plot') Art.plotBed(c, x, y, w, false, p.ok ? '#7CFC00' : '#ff5a4a');
+    else if(p.type === 'decor') Art.decorUp(c, p.kind, x, y, w, h, time);
+    else if(BUILDINGS[p.kind].kind === 'factory') Art.factory(c, x, y, w, h, BUILDINGS[p.kind], false, time, p.kind);
+    else { const B = BUILDINGS[p.kind]; Art.fenceLine(c, x, y, x + w, y); Art.fenceLine(c, x, y, x, y + h); Art.shelter(c, x + w - 2.4 * T, y + 0.3 * T, 2 * T, 1.7 * T, B); Art.fenceLine(c, x, y + h, x + w, y + h); Art.fenceLine(c, x + w, y, x + w, y + h); }
+    c.restore();
+    // стрелки «тяни меня»
+    const ctr = Art.P(x + w / 2, y + h / 2), bob = Math.sin(time * 4) * 3;
+    c.fillStyle = '#fff'; c.strokeStyle = '#2e7d14'; c.lineWidth = 2;
+    [[0, -1], [1, 0], [0, 1], [-1, 0]].forEach(([dx, dy]) => { const ax = ctr.x + dx * (w * 0.75 + 14 + bob), ay = ctr.y + dy * (h * 0.38 + 10 + bob); c.beginPath(); c.moveTo(ax + dx * 10, ay + dy * 10); c.lineTo(ax - dy * 8, ay + dx * 8); c.lineTo(ax + dy * 8, ay - dx * 8); c.closePath(); c.fill(); c.stroke(); });
   },
   /* ---------- «сочность»: пружинка и частицы ---------- */
   pulse(key){ this.pulses.set(key, performance.now() / 1000); },
@@ -409,6 +426,17 @@ const Engine = {
       return;
     }
     const w = this.toWorld(e.clientX, e.clientY);
+    const pl = this.placing;
+    if(pl){
+      // тянем «призрак» покупки, если нажали на него (с запасом в полклетки), иначе двигаем карту
+      const T = TILE, m = 0.6 * T;
+      if(w.x > pl.gx * T - m && w.x < (pl.gx + pl.w) * T + m && w.y > pl.gy * T - m && w.y < (pl.gy + pl.h) * T + m){
+        this.gesture = { type:'place', ox: w.x - pl.gx * T, oy: w.y - pl.gy * T };
+        return;
+      }
+      this.gesture = { type:'press', sx: e.clientX, sy: e.clientY, cx: this.cam.x, cy: this.cam.y, obj: null, w, moved: false };
+      return;
+    }
     const obj = this.pickAt(e.clientX, e.clientY);
     this.gesture = { type:'press', sx: e.clientX, sy: e.clientY, cx: this.cam.x, cy: this.cam.y, obj, w, moved: false };
     clearTimeout(this.pressTimer);
@@ -424,6 +452,13 @@ const Engine = {
       const [a, b] = [...this.pointers.values()];
       const d = Math.hypot(a.x - b.x, a.y - b.y);
       this.zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, d / g.d); g.d = d;
+      return;
+    }
+    if(g.type === 'place' && this.placing){
+      const w = this.toWorld(e.clientX, e.clientY), p = this.placing;
+      p.gx = Math.max(0, Math.min(MAP_W - p.w, Math.round((w.x - g.ox) / TILE)));
+      p.gy = Math.max(0, Math.min(MAP_H - p.h, Math.round((w.y - g.oy) / TILE)));
+      Place.check();
       return;
     }
     if(g.type === 'move'){
@@ -449,6 +484,8 @@ const Engine = {
     this.gesture = null;
     if(!g || cancel) { this.moving = null; return; }
     if(g.type === 'move') return this.endMove();
+    if(g.type === 'place') return;
+    if(this.placing) return;
     if(g.type === 'press') this.tap(g.obj, g.w, e);
   },
   startMove(obj, w){

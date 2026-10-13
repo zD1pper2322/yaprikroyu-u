@@ -132,8 +132,8 @@ function save(){
 }
 
 /* ===================== ПОДСЧЁТЫ ===================== */
-// Ограничений по уровню нет: всё доступно сразу, нужны только монеты.
-const unlocked = () => true;
+// Постройки, культуры, изделия и декор открываются по уровню, как в Hay Day.
+const unlocked = key => (ITEMS[key]?.lvl || BUILDINGS[key]?.lvl || ANIMALS[key]?.lvl || DECOR[key]?.lvl || 1) <= S.lvl;
 const have = k => S.inv[k] || 0;
 function stored(){ return Object.values(S.inv).reduce((a, b) => a + b, 0); }
 function spaceLeft(){ return S.cap - stored(); }
@@ -158,13 +158,19 @@ function gainXp(n){
   while(S.xp >= xpForLevel(S.lvl)){
     S.xp -= xpForLevel(S.lvl);
     S.lvl++;
-    const opened = [];
+    const opened = [
+      ...Object.keys(BUILDINGS).filter(k => BUILDINGS[k].lvl === S.lvl).map(k => BUILDINGS[k].e + ' ' + BUILDINGS[k].n),
+      ...Object.keys(ITEMS).filter(k => ITEMS[k].lvl === S.lvl && ITEMS[k].kind === 'crop').map(k => ITEMS[k].e + ' ' + ITEMS[k].n),
+      ...Object.keys(ITEMS).filter(k => ITEMS[k].lvl === S.lvl && ITEMS[k].kind === 'good').map(k => ITEMS[k].e + ' ' + ITEMS[k].n),
+      ...Object.keys(ANIMALS).filter(k => ANIMALS[k].lvl === S.lvl).map(k => ANIMALS[k].e + ' ' + ANIMALS[k].n),
+      ...Object.keys(DECOR).filter(k => DECOR[k].lvl === S.lvl).map(k => DECOR[k].e + ' ' + DECOR[k].n),
+    ];
     S.coins += 20 * S.lvl;
     const lg = S.lvl % 5 === 0 ? 3 : 1; addGems(lg);
     if(S.lvl >= 3 && window.Social) Social.sys(`🎉 ${S.nick} достиг ${S.lvl} уровня!`);
     Sound.play('level'); buzz([30, 40, 60]);
     { const c = Engine.toWorld(window.innerWidth / 2, window.innerHeight / 2); Engine.burst(c.x, c.y, 'confetti', { n: 60, lift: 60 }); }
-    showSheet(`🎉 Уровень ${S.lvl}!`, `<p class="big">Награда: 🪙 ${20 * S.lvl} и 💎 ${lg}</p>${opened.length ? `<p>Открыто:</p><div class="chips">${opened.map(o => `<span class="chip">${o}</span>`).join('')}</div>` : ''}<button class="btn primary" data-close>Отлично</button>`);
+    showSheet(`🎉 Уровень ${S.lvl}!`, `<p class="big">Награда: 🪙 ${20 * S.lvl} и 💎 ${lg}</p>${opened.length ? `<p>Открыто:</p><div class="chips">${opened.map(o => `<span class="chip">${o}</span>`).join('')}</div>` : ''}<p class="hint">Новые постройки — в 🛒 Магазине.</p><button class="btn primary" data-close>Отлично</button>`);
     fillOrders();
   }
 }
@@ -204,17 +210,19 @@ function harvest(i){
   Tut.on('harvest'); Daily.on('harvest', crop, 2);
   return true;
 }
-function buyPlot(){
+function buyPlot(at){
   if(S.plots.length >= MAX_PLOTS) return toast('Больше грядок не поместится');
   const cost = plotCost(S.plots.length);
   if(S.coins < cost) return toast(`Нужно 🪙 ${cost}`);
-  const spot = findSpot(makeOcc(S), PLOT, PLOT, [9, 9]);
+  const spot = at && makeOcc(S).free(at[0], at[1], PLOT, PLOT) ? at : findSpot(makeOcc(S), PLOT, PLOT, [9, 9]);
   if(!spot) return toast('Нет места на хуторе');
   S.coins -= cost;
   S.plots.push({ id: 'p' + now().toString(36), crop: null, start: 0, gx: spot[0], gy: spot[1] });
   Sound.play('coin');
-  save(); Engine.focus(spot[0] + 1, spot[1] + 1);
-  toast('Грядка готова. Зажмите её, чтобы переставить');
+  Engine.burst((spot[0] + 1) * TILE, (spot[1] + 1) * TILE, 'dust', { n: 14, lift: 0 });
+  save(); if(!at) Engine.focus(spot[0] + 1, spot[1] + 1);
+  if(!at) toast('Грядка готова. Зажмите её, чтобы переставить');
+  return true;
 }
 
 /* ===================== ЖИВОТНЫЕ ===================== */
@@ -260,20 +268,21 @@ function buyAnimal(hk){
 }
 
 /* ===================== ПОСТРОЙКИ И ЗАВОДЫ ===================== */
-function build(k){
+function build(k, at){
   const B = BUILDINGS[k];
   if(S.buildings[k]) return;
   if(!unlocked(k)) return toast(`Откроется на уровне ${B.lvl}`);
   if(S.coins < B.cost) return toast(`Нужно 🪙 ${B.cost}`);
-  const spot = findSpot(makeOcc(S), B.w, B.h, B.spot, (gx, gy) => clearView(S, { type: B.kind, key: 'building:' + k, gx, gy, w: B.w, h: B.h }));
+  const spot = at && makeOcc(S).free(at[0], at[1], B.w, B.h) ? at : findSpot(makeOcc(S), B.w, B.h, B.spot, (gx, gy) => clearView(S, { type: B.kind, key: 'building:' + k, gx, gy, w: B.w, h: B.h }));
   if(!spot) return toast('Нет места на хуторе — уберите декор');
   S.coins -= B.cost;
   Engine.burst((spot[0] + B.w / 2) * TILE, (spot[1] + B.h / 2) * TILE, 'dust', { n: 30, lift: 0 }); Engine.pulse('building:' + k); buzz(40);
   S.buildings[k] = B.kind === 'house' ? { animals: [{ start: 0 }], gx: spot[0], gy: spot[1] } : { queue: [], gx: spot[0], gy: spot[1] };
   gainXp(5 + Math.round(B.cost / 40));
   Sound.play('build');
-  save(); closeSheet(); Engine.focus(spot[0] + B.w / 2, spot[1] + B.h / 2);
-  toast(`${B.e} ${B.n} построен! Зажмите, чтобы переставить`);
+  save(); closeSheet(); if(!at) Engine.focus(spot[0] + B.w / 2, spot[1] + B.h / 2);
+  toast(`${B.e} ${B.n} построен!`);
+  return true;
 }
 function queueEnd(q){ return q.length ? q[q.length - 1].end : 0; }
 function produce(bk, item){
@@ -308,7 +317,7 @@ const ORDER_SLOTS = () => Math.min(6, 3 + Math.floor(S.lvl / 4));
 function orderable(){
   return Object.keys(ITEMS).filter(k => {
     const it = ITEMS[k];
-    if(it.kind === 'feed') return false;
+    if(it.kind === 'feed' || !unlocked(k)) return false;
     // долгие культуры в заказах — только если игрок их уже сажал или они есть в амбаре
     if(it.kind === 'crop') return it.time <= 600 * (1 + S.lvl) || have(k) > 0 || S.plots.some(p => p.crop === k);
     if(it.kind === 'good') return !!S.buildings[RECIPES[k].b];
@@ -409,16 +418,61 @@ function upgradeStorage(){
   S.coins -= cost; S.cap += 25; Sound.play('build');
   toast(`📦 Амбар: ${S.cap} мест`); save();
 }
-function buyDecor(kind){
+function buyDecor(kind, at){
   const D = DECOR[kind];
   if(!unlocked(kind)) return toast(`Откроется на уровне ${D.lvl}`);
   if(S.coins < D.cost) return toast(`Нужно 🪙 ${D.cost}`);
-  const spot = findSpot(makeOcc(S), D.w, D.h, [11, 4], (gx, gy) => clearView(S, { type: 'decor', kind, key: 'decor:new', gx, gy, w: D.w, h: D.h }));
+  const spot = at && makeOcc(S).free(at[0], at[1], D.w, D.h) ? at : findSpot(makeOcc(S), D.w, D.h, [11, 4], (gx, gy) => clearView(S, { type: 'decor', kind, key: 'decor:new', gx, gy, w: D.w, h: D.h }));
   if(!spot) return toast('Нет места на хуторе');
   S.coins -= D.cost; S.decor.push({ kind, gx: spot[0], gy: spot[1] });
-  Sound.play('build'); save(); closeSheet(); Engine.focus(spot[0] + D.w / 2, spot[1] + D.h / 2);
-  toast(`${D.e} ${D.n} на хуторе. Зажмите, чтобы переставить`);
+  Engine.burst((spot[0] + D.w / 2) * TILE, (spot[1] + D.h / 2) * TILE, 'dust', { n: 14, lift: 0 });
+  Sound.play('build'); save(); closeSheet(); if(!at) Engine.focus(spot[0] + D.w / 2, spot[1] + D.h / 2);
+  if(!at) toast(`${D.e} ${D.n} на хуторе. Зажмите, чтобы переставить`);
+  return true;
 }
+
+/* ===================== РАССТАНОВКА ИЗ МАГАЗИНА (как в Hay Day) =====================
+   Покупка не ставит вещь сразу: на карте появляется «призрак», его можно перетащить,
+   затем ✔ — купить и поставить, ✖ — отменить. После этого магазин открывается снова. */
+const Place = {
+  start(type, kind){
+    let w, h, cost, pref, name;
+    if(type === 'plot'){
+      if(S.plots.length >= MAX_PLOTS) return toast('Больше грядок не поместится');
+      w = h = PLOT; cost = plotCost(S.plots.length); pref = [9, 9]; name = '🟫 Грядка';
+    } else if(type === 'decor'){
+      const D = DECOR[kind]; if(!unlocked(kind)) return toast(`Откроется на уровне ${D.lvl}`);
+      w = D.w; h = D.h; cost = D.cost; pref = [11, 4]; name = D.e + ' ' + D.n;
+    } else {
+      const B = BUILDINGS[kind]; if(S.buildings[kind]) return; if(!unlocked(kind)) return toast(`Откроется на уровне ${B.lvl}`);
+      w = B.w; h = B.h; cost = B.cost; pref = B.spot; name = B.e + ' ' + B.n;
+    }
+    if(S.coins < cost) return toast(`Нужно 🪙 ${cost}`);
+    const ok = type === 'plot' ? null : (gx, gy) => clearView(S, { type: type === 'building' ? BUILDINGS[kind].kind : 'decor', kind, key: 'place', gx, gy, w, h });
+    const spot = findSpot(makeOcc(S), w, h, pref, ok);
+    if(!spot) return toast('Нет места на хуторе');
+    Engine.placing = { type, kind, w, h, gx: spot[0], gy: spot[1], ok: true, cost, tab: type === 'plot' ? 'field' : type === 'decor' ? 'decor' : 'build' };
+    closeSheet(); Radial.close();
+    Engine.focus(spot[0] + w / 2, spot[1] + h / 2);
+    document.body.classList.add('placing');
+    $('#placeText').textContent = `${name} · 🪙 ${cost}`;
+    $('#placeBar').hidden = false;
+    toast('Перетащите на нужное место и нажмите ✔');
+  },
+  check(){ const p = Engine.placing; if(p) p.ok = makeOcc(S).free(p.gx, p.gy, p.w, p.h); },
+  end(){ Engine.placing = null; document.body.classList.remove('placing'); $('#placeBar').hidden = true; },
+  confirm(){
+    const p = Engine.placing; if(!p) return;
+    this.check();
+    if(!p.ok) return toast('Здесь занято — передвиньте на свободное место');
+    const at = [p.gx, p.gy];
+    const done = p.type === 'plot' ? buyPlot(at) : p.type === 'decor' ? buyDecor(p.kind, at) : build(p.kind, at);
+    if(!done) return;
+    this.end();
+    setTimeout(() => openShop(p.tab), 450);   // как в Hay Day: сразу обратно в магазин
+  },
+  cancel(){ const p = Engine.placing; this.end(); if(p) openShop(p.tab); },
+};
 
 /* ===================== ОКНА ===================== */
 let sheetOnClose = null, sheetKind = null;
@@ -529,12 +583,12 @@ function openStorage(){
     sh.querySelector('#upStore').onclick = () => { upgradeStorage(); openStorage(); };
   }, null, 'storage');
 }
-const NEW_FACTORIES = ['popcornpot', 'grill', 'pieoven', 'icecream', 'pizzeria', 'soupkitchen', 'pastamaker', 'fryer', 'blender', 'saucery', 'sewing'];
+const NEW_FACTORIES = ['chocolatier', 'donutshop', 'omeletstation', 'saladbar', 'florist', 'applepress', 'burgerstand', 'hatmaker', 'tacokitchen', 'coffeeshop', 'ricecooker', 'wok', 'teahouse', 'toyshop', 'soapmaker'];
 function openShop(tab = 'build'){
   const tabs = `<div class="seg"><button data-t="build" class="${tab === 'build' ? 'active' : ''}">Постройки</button><button data-t="field" class="${tab === 'field' ? 'active' : ''}">Поле</button><button data-t="decor" class="${tab === 'decor' ? 'active' : ''}">Декор</button></div>`;
   let body = '';
   if(tab === 'build'){
-    const rank = k => (S.buildings[k] ? 2 : NEW_FACTORIES.includes(k) ? 0 : 1);
+    const rank = k => (S.buildings[k] ? 2 : !unlocked(k) ? 3 : NEW_FACTORIES.includes(k) ? 0 : 1);
     body = Object.keys(BUILDINGS).sort((a, b) => rank(a) - rank(b)).map(k => {
       const B = BUILDINGS[k], built = !!S.buildings[k];
       const sub = B.kind === 'house' ? `${ANIMALS[B.animal].e} даёт ${ITEMS[ANIMALS[B.animal].makes].e}` : Object.keys(RECIPES).filter(r => RECIPES[r].b === k).map(r => ITEMS[r].e).join(' ');
@@ -555,10 +609,10 @@ function openShop(tab = 'build'){
   }
   showSheet('🛒 Магазин', tabs + `<div class="shop">${body}</div>`, sh => {
     sh.querySelectorAll('[data-t]').forEach(b => b.onclick = () => openShop(b.dataset.t));
-    sh.querySelectorAll('[data-build]').forEach(b => b.onclick = () => build(b.dataset.build));
+    sh.querySelectorAll('[data-build]').forEach(b => b.onclick = () => Place.start('building', b.dataset.build));
     sh.querySelectorAll('[data-animal]').forEach(b => b.onclick = () => { buyAnimal(b.dataset.animal); openShop('build'); });
-    sh.querySelectorAll('[data-decor]').forEach(b => b.onclick = () => buyDecor(b.dataset.decor));
-    sh.querySelector('#bPlot')?.addEventListener('click', () => { closeSheet(); buyPlot(); });
+    sh.querySelectorAll('[data-decor]').forEach(b => b.onclick = () => Place.start('decor', b.dataset.decor));
+    sh.querySelector('#bPlot')?.addEventListener('click', () => Place.start('plot'));
     sh.querySelector('#bStore')?.addEventListener('click', () => { upgradeStorage(); openShop('field'); });
   }, null, 'shop');
 }
@@ -724,7 +778,7 @@ function startGame(state){
   renderHud(); Tut.show();
   save();
   Daily.check(); Daily.dot(); Boat.tick();
-  if((S.seenNews || 0) < 8){ S.seenNews = 8; save(); setTimeout(() => toast('🏭 Новое: 11 заводов и 3 культуры — всё доступно сразу в 🛒 Магазине'), 2500); }
+  if((S.seenNews || 0) < 10){ S.seenNews = 10; save(); setTimeout(() => toast('🏭 Новое: ещё 15 заводов и 7 культур — открываются по уровням. И своё соседство с чатом в «Соседях»!'), 2500); }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -733,6 +787,8 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btnFriends').onclick = () => Net.openFriends();
   $('#btnSettings').onclick = openSettings;
   $('#btnDaily').onclick = openDaily;
+  $('#placeYes').onclick = () => Place.confirm();
+  $('#placeNo').onclick = () => Place.cancel();
   $('#hudGemsBtn').onclick = () => toast(`💎 Кристаллы: ${S.gems || 0}. Ускоряют грядки, заводы, животных и грузовик. Даются за уровни, задания дня, корабль и сундуки`);
   $('#hudStoreBtn').onclick = openStorage;
   $('#sheetClose').onclick = closeSheet;

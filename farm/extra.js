@@ -4,7 +4,7 @@
 const START_GEMS = 10;
 const gemCost = sec => Math.max(1, Math.ceil(sec / 300));     // 💎1 за каждые 5 минут ожидания
 const MAX_QUEUE = 6;
-const BOAT_LVL = 1;
+const BOAT_LVL = 4;
 const BOAT_STAY = 6 * 3600e3;     // корабль ждёт 6 часов
 const BOAT_GAP = 60 * 60e3;       // следующий приплывает через час
 const LOGIN_REWARDS = [{ coins: 20 }, { coins: 40 }, { gems: 1 }, { coins: 60 }, { gems: 2 }, { coins: 100 }, { gems: 5 }];
@@ -65,7 +65,7 @@ const Daily = {
     const pick = a => a[Math.floor(Math.random() * a.length)];
     const pool = [];
     const crops = CROPS.filter(unlocked);
-    const c = pick(crops.filter(k => ITEMS[k].time <= 600 * (1 + S.lvl) || have(k) > 0));
+    const c = pick(crops.filter(k => ITEMS[k].time <= 600 * (1 + S.lvl) || have(k) > 0).concat(crops.slice(0, 1)));
     pool.push({ k:'harvest', item: c, n: Math.max(4, Math.round(24 / Math.sqrt(ITEMS[c].time / 60) / 2) * 2) });
     const goods = Object.keys(RECIPES).filter(r => unlocked(r) && S.buildings[RECIPES[r].b]);
     if(goods.length){ const g = pick(goods), R = RECIPES[g]; pool.push({ k:'produce', item: g, n: R.out * (R.time <= 300 ? 3 : 2) }); }
@@ -146,7 +146,7 @@ const Boat = {
   },
   make(arrive){
     const pick = a => a[Math.floor(Math.random() * a.length)];
-    const pool = [...CROPS.filter(k => ITEMS[k].time <= 600 * (1 + S.lvl) || have(k) > 0).map(k => ({ k, n: 4 + Math.round(10 / Math.sqrt(ITEMS[k].time / 60)) }))];
+    const pool = [...CROPS.filter(k => unlocked(k) && (ITEMS[k].time <= 600 * (1 + S.lvl) || have(k) > 0)).map(k => ({ k, n: 4 + Math.round(10 / Math.sqrt(ITEMS[k].time / 60)) }))];
     Object.keys(S.buildings).filter(k => BUILDINGS[k].kind === 'house').forEach(k => { const m = ANIMALS[BUILDINGS[k].animal].makes; pool.push({ k: m, n: 3 + Math.floor(Math.random() * 3) }); });
     Object.keys(RECIPES).filter(r => ITEMS[r].kind === 'good' && unlocked(r) && S.buildings[RECIPES[r].b]).forEach(r => pool.push({ k: r, n: 1 + Math.floor(Math.random() * (ITEMS[r].price < 50 ? 3 : 2)) }));
     const crates = [];

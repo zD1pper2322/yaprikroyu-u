@@ -301,6 +301,188 @@ Object.assign(Art, {
   },
 });
 
+/* ---------- заготовки для новых заводов: ларёк, навес, фургон ---------- */
+Object.assign(Art, {
+  emoji(ctx, p, e, size){ ctx.font = `${size}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#000'; ctx.fillText(e, p.x, p.y); },
+  // Ларёк: прилавок, задняя стенка и полосатая наклонная крыша.
+  kiosk(A, c, cx, cy, z, wall, roof, goods){
+    const bx = cx - 40, by = cy - 30;
+    A.boxZ(c, bx, by, 80, 18, 70, wall, A.shade(wall, 0.9), z, true);                    // задняя стенка
+    A.boxZ(c, bx, by + 24, 80, 34, 34, A.shade(wall, 0.95), '#f5ead2', z, true);          // прилавок
+    (goods || []).forEach((g, i) => A.emoji(c, A.G(bx + 16 + i * 24, by + 40, z + 42), g, 16));
+    const P = (x, y, h) => A.G(x, y, z + h);
+    [[bx + 2, by + 56], [bx + 78, by + 56]].forEach(([x, y]) => { const b = P(x, y, 34), t = P(x, y, 74); c.fillStyle = '#6b4220'; c.fillRect(b.x - 2.5, t.y, 5, b.y - t.y); });
+    for(let i = 0; i < 6; i++){
+      const u0 = bx - 6 + i * 92 / 6, u1 = u0 + 92 / 6;
+      A.poly(c, [P(u0, by - 4, 86), P(u1, by - 4, 86), P(u1, by + 62, 70), P(u0, by + 62, 70)], i % 2 ? '#fffaf0' : roof, A.OL, 1);
+      const m = P((u0 + u1) / 2, by + 62, 70); c.fillStyle = i % 2 ? '#fffaf0' : roof; c.beginPath(); c.arc(m.x, m.y, 6.5, 0, Math.PI); c.fill();
+    }
+    return P(cx, by + 20, 92);
+  },
+  // Навес на столбиках с полосатым тентом и столом.
+  stall(A, c, cx, cy, z, roof, table){
+    const P = (x, y, h) => A.G(x, y, z + h);
+    const post = (x, y) => { const b = P(x, y, 0), t = P(x, y, 76); c.fillStyle = '#6b4220'; c.fillRect(b.x - 3, t.y, 6, b.y - t.y); };
+    post(cx - 44, cy - 38); post(cx + 40, cy - 38);
+    A.boxZ(c, cx - 36, cy - 10, 72, 34, 28, '#a86d34', table || '#c98f4f', z, true);
+    post(cx - 44, cy + 34); post(cx + 40, cy + 34);
+    for(let i = 0; i < 7; i++){
+      const u0 = cx - 50 + i * 96 / 7, u1 = u0 + 96 / 7;
+      A.poly(c, [P(u0, cy - 44, 80), P(u1, cy - 44, 80), P(u1, cy + 40, 80), P(u0, cy + 40, 80)], i % 2 ? '#fffaf0' : roof, A.OL, 1);
+      const m = P((u0 + u1) / 2, cy + 40, 80); c.fillStyle = i % 2 ? '#fffaf0' : roof; c.beginPath(); c.arc(m.x, m.y, 7, 0, Math.PI); c.fill();
+    }
+    A.poly(c, [P(cx + 46, cy - 44, 80), P(cx + 46, cy + 40, 80), P(cx + 46, cy + 40, 72), P(cx + 46, cy - 44, 72)], A.shade(roof, 0.7), A.OL, 1);
+    return P(cx, cy + 6, 28);
+  },
+  torus(c, p, rx, ry, col, inner){
+    c.fillStyle = A_shade(col); c.beginPath(); c.ellipse(p.x, p.y + 3, rx, ry, 0, 0, 7); c.fill();
+    c.fillStyle = col; c.beginPath(); c.ellipse(p.x, p.y, rx, ry, 0, 0, 7); c.fill();
+    c.fillStyle = inner; c.beginPath(); c.ellipse(p.x, p.y, rx * 0.36, ry * 0.36, 0, 0, 7); c.fill();
+  },
+});
+function A_shade(col){ return Art.shade(col, 0.72); }
+
+Object.assign(Art.MACHINES, {
+  chocolatier(A, c, cx, cy, z, run, t){
+    A.boxZ(c, cx - 44, cy - 36, 86, 70, 26, '#6d4c41', '#8d6e63', z);
+    const t1 = A.cyl(c, cx - 2, cy - 2, 30, 14, '#5d4037', z + 26, '#8d5a3b');
+    const t2 = A.cyl(c, cx - 2, cy - 2, 20, 14, '#5d4037', z + 48, '#8d5a3b');
+    A.cyl(c, cx - 2, cy - 2, 4, 26, '#bdbdbd', z + 40);
+    const tp = A.cyl(c, cx - 2, cy - 2, 10, 10, '#5d4037', z + 70, '#a1683f');
+    c.fillStyle = '#6d3b20'; for(let i = 0; i < 7; i++){ const a = Math.PI * (0.1 + i * 0.13), dl = run ? (t * 20 + i * 5) % 14 : 6; [t1, t2].forEach(s => { c.beginPath(); c.ellipse(s.x + Math.cos(a) * s.rx, s.y + Math.sin(a) * s.ry + 4 + dl, 2, 4, 0, 0, 7); c.fill(); }); }
+    [0, 1, 2].forEach(i => A.boxZ(c, cx + 26 + i * 4, cy + 30 - i * 10, 22, 8, 4 + i * 0, '#4e342e', '#795548', z + i * 0));
+    return {};
+  },
+  donutshop(A, c, cx, cy, z, run, t){
+    const top = A.kiosk(A, c, cx, cy, z, '#ffe0ec', '#ff6fa5', ['🍩', '🧇', '🍩']);
+    const p = { x: top.x, y: top.y - 18 - (run ? Math.abs(Math.sin(t * 3)) * 4 : 0) };
+    A.torus(c, p, 30, 15, '#d99a4e', '#00000000');
+    c.fillStyle = '#ff8fb3'; c.beginPath(); c.ellipse(p.x, p.y - 2, 26, 12, 0, 0, 7); c.fill();
+    c.fillStyle = '#5a3a1a'; c.beginPath(); c.ellipse(p.x, p.y - 1, 9, 4.5, 0, 0, 7); c.fill();
+    ['#fff', '#7ad04f', '#4a90e2', '#ffd23f'].forEach((col, i) => { c.fillStyle = col; c.fillRect(p.x - 18 + i * 10, p.y - 6 + (i % 2) * 6, 5, 2); });
+    return {};
+  },
+  omeletstation(A, c, cx, cy, z, run, t){
+    A.boxZ(c, cx - 40, cy - 30, 78, 60, 40, '#eceff1', '#455a64', z);
+    A.faceYZ(c, cx - 40, cy - 30, 78, 60, z, 10, 30, 10, 30, '#263238', A.OL); A.faceYZ(c, cx - 40, cy - 30, 78, 60, z, 44, 64, 10, 30, '#263238', A.OL);
+    const pan = A.cyl(c, cx - 14, cy - 6, 20, 6, '#2b2b2b', z + 40, '#3a3a3a');
+    c.strokeStyle = '#2b2b2b'; c.lineWidth = 5; c.beginPath(); c.moveTo(pan.x - pan.rx, pan.y + 2); c.lineTo(pan.x - pan.rx - 22, pan.y - 6); c.stroke();
+    c.fillStyle = '#fffaf0'; c.beginPath(); c.ellipse(pan.x, pan.y, pan.rx * 0.7, pan.ry * 0.7, 0, 0, 7); c.fill(); c.fillStyle = '#ffc107'; c.beginPath(); c.arc(pan.x + 2, pan.y - 1, 6, 0, 7); c.fill();
+    const pot = A.cyl(c, cx + 20, cy - 14, 13, 18, '#b0bec5', z + 40, '#cfd8dc');
+    A.dome(c, cx + 46, cy + 44, 7, 9, '#fffaf0', z); A.dome(c, cx + 36, cy + 50, 7, 9, '#fff3e0', z);
+    return { smoke: run ? { x: pot.x, y: pot.y - 4 } : null, smokeCol: '#fafafa' };
+  },
+  saladbar(A, c, cx, cy, z, run, t){
+    const tb = A.stall(A, c, cx, cy, z, '#43a047', '#e8f5e9');
+    [['🥗', -26], ['🥬', 0], ['🥕', 24]].forEach(([e, dx]) => A.emoji(c, { x: tb.x + dx, y: tb.y - 4 }, e, 18));
+    return {};
+  },
+  florist(A, c, cx, cy, z, run, t){
+    const tb = A.stall(A, c, cx, cy, z, '#ec407a', '#fce4ec');
+    [['💐', -24], ['🌹', 2], ['🌸', 24]].forEach(([e, dx]) => A.emoji(c, { x: tb.x + dx, y: tb.y - 6 }, e, 18));
+    [[cx + 40, cy + 46, '#e53950'], [cx + 26, cy + 54, '#ffd23f']].forEach(([x, y, col]) => { const b = A.cyl(c, x, y, 8, 14, '#90a4ae', z, '#5d4037'); [[-4, -4], [3, -6], [0, -9], [5, -2]].forEach(([dx, dy]) => { c.fillStyle = col; c.beginPath(); c.arc(b.x + dx, b.y + dy, 3.2, 0, 7); c.fill(); }); });
+    return {};
+  },
+  applepress(A, c, cx, cy, z, run, t){
+    const P = (x, y, h) => A.G(x, y, z + h);
+    const post = (x, y) => { const b = P(x, y, 0), tp = P(x, y, 80); c.fillStyle = '#7a4a22'; c.fillRect(b.x - 4, tp.y, 8, b.y - tp.y); };
+    post(cx - 30, cy - 20); post(cx + 20, cy - 20);
+    const v = A.cyl(c, cx - 6, cy - 8, 26, 30, '#a0602a', z, '#c5e1a5'); A.hoop(c, v, 8); A.hoop(c, v, 22);
+    const sc = P(cx - 6, cy - 8, 30 + (run ? 10 + Math.sin(t * 3) * 8 : 18)); c.fillStyle = '#6b4220'; c.beginPath(); c.ellipse(sc.x, sc.y, v.rx * 0.8, v.ry * 0.8, 0, 0, 7); c.fill();
+    const a = P(cx - 30, cy - 20, 80), b = P(cx + 20, cy - 20, 80); c.strokeStyle = '#5c3416'; c.lineWidth = 8; c.lineCap = 'round'; c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke();
+    const m = P(cx - 6, cy - 8, 80); c.strokeStyle = '#555'; c.lineWidth = 4; c.beginPath(); c.moveTo(m.x, m.y); c.lineTo(sc.x, sc.y); c.stroke();
+    A.boxZ(c, cx + 22, cy + 26, 30, 24, 16, '#c98f4f', '#a86d34', z);
+    const cr = A.G(cx + 37, cy + 38, z + 16); c.fillStyle = '#d32f2f'; [[-8, 0], [0, -2], [8, 0], [-4, -6], [4, -6]].forEach(([dx, dy]) => { c.beginPath(); c.arc(cr.x + dx, cr.y + dy, 4.5, 0, 7); c.fill(); });
+    return {};
+  },
+  burgerstand(A, c, cx, cy, z, run, t){
+    const top = A.kiosk(A, c, cx, cy, z, '#fff3e0', '#e53935', ['🍔', '🌭', '🥤']);
+    const p = { x: top.x, y: top.y - 14 };
+    const layer = (dy, rx, ry, col) => { c.fillStyle = col; c.beginPath(); c.ellipse(p.x, p.y + dy, rx, ry, 0, 0, 7); c.fill(); };
+    layer(10, 26, 10, '#d99a4e'); layer(4, 28, 9, '#5d4037'); layer(0, 29, 7, '#7cb342'); layer(-3, 27, 7, '#fbc02d');
+    c.fillStyle = '#e8a04a'; c.beginPath(); c.ellipse(p.x, p.y - 6, 26, 18, 0, Math.PI, 0); c.fill();
+    c.fillStyle = '#fff3c4'; [[-10, -14], [0, -18], [10, -13], [-4, -10]].forEach(([dx, dy]) => { c.beginPath(); c.ellipse(p.x + dx, p.y + dy, 2, 1.2, 0.5, 0, 7); c.fill(); });
+    return { smoke: run ? { x: top.x + 30, y: top.y + 10 } : null, smokeCol: '#eeeeee' };
+  },
+  hatmaker(A, c, cx, cy, z, run, t){
+    A.boxZ(c, cx - 44, cy - 20, 88, 40, 32, '#a86d34', '#c98f4f', z, true);
+    [[-26, '#f4d03f', '#e53935'], [2, '#7e57c2', '#ffd23f'], [28, '#4a90e2', '#ffffff']].forEach(([dx, col, band], i) => {
+      const b = A.G(cx + dx, cy - 2, z + 32); c.fillStyle = '#6b4220'; c.fillRect(b.x - 2, b.y - 30, 4, 30);
+      const h = { x: b.x, y: b.y - 30 }; c.fillStyle = A.shade(col, 0.8); c.beginPath(); c.ellipse(h.x, h.y, 18, 7, 0, 0, 7); c.fill();
+      c.fillStyle = col; c.beginPath(); c.ellipse(h.x, h.y - 2, 10, 13, 0, Math.PI, 0); c.fill(); c.fillStyle = band; c.fillRect(h.x - 10, h.y - 5, 20, 3);
+    });
+    A.cyl(c, cx + 44, cy + 44, 8, 16, '#ede7f6', z, '#7e57c2');
+    return {};
+  },
+  tacokitchen(A, c, cx, cy, z, run, t){
+    const bx = cx - 44, by = cy - 26;
+    A.boxZ(c, bx, by, 86, 50, 54, '#ffcc80', '#fff8e1', z + 6, true);
+    A.faceYZ(c, bx, by, 86, 50, z + 6, 14, 64, 20, 42, '#3e2723', A.OL);
+    A.faceYZ(c, bx, by, 86, 50, z + 6, 10, 68, 42, 50, '#ef6c00');
+    [[bx + 14, by + 50], [bx + 70, by + 50]].forEach(([x, y]) => { const p = A.G(x, y, z + 6); c.fillStyle = '#2b2b2b'; c.beginPath(); c.ellipse(p.x, p.y, 8, 11, 0.4, 0, 7); c.fill(); c.fillStyle = '#bbb'; c.beginPath(); c.arc(p.x, p.y, 3, 0, 7); c.fill(); });
+    const tp = A.G(cx - 2, cy - 2, z + 62);
+    c.fillStyle = '#f6c945'; c.beginPath(); c.ellipse(tp.x, tp.y - 12, 26, 20, 0, Math.PI, 0); c.fill(); c.strokeStyle = A.OL; c.lineWidth = 1.5; c.stroke();
+    c.fillStyle = '#7cb342'; c.beginPath(); c.ellipse(tp.x, tp.y - 14, 20, 5, 0, 0, 7); c.fill(); c.fillStyle = '#e53935'; [[-8], [2], [10]].forEach(([dx]) => { c.beginPath(); c.arc(tp.x + dx, tp.y - 16, 3, 0, 7); c.fill(); });
+    return { smoke: run ? A.G(bx + 70, by + 10, z + 66) : null, smokeCol: '#eeeeee' };
+  },
+  coffeeshop(A, c, cx, cy, z, run, t){
+    const top = A.kiosk(A, c, cx, cy, z, '#efebe9', '#5d4037', ['☕', '🧋', '🥐']);
+    const cup = A.cyl(c, cx - 4, cy - 14, 18, 26, '#fffaf0', z + 92, '#6d4c41');
+    c.strokeStyle = '#fffaf0'; c.lineWidth = 5; c.beginPath(); c.ellipse(cup.x + cup.rx + 4, cup.y + 14, 7, 9, 0, -1.3, 1.3); c.stroke();
+    return { smoke: { x: cup.x, y: cup.y - 4 }, smokeCol: '#ffffff' };
+  },
+  ricecooker(A, c, cx, cy, z, run, t){
+    A.boxZ(c, cx - 40, cy - 30, 80, 64, 24, '#80cbc4', '#e0f2f1', z);
+    const body = A.cyl(c, cx - 4, cy - 4, 28, 34, '#fafafa', z + 24, '#eeeeee');
+    c.fillStyle = '#26a69a'; c.fillRect(body.x - body.rx, body.by - 18, body.rx * 2, 5);
+    A.dome(c, cx - 4, cy - 4, 28, 16, '#e0e0e0', z + 58);
+    const k = A.G(cx - 4, cy - 4, z + 74); c.fillStyle = '#424242'; c.beginPath(); c.ellipse(k.x, k.y, 6, 3, 0, 0, 7); c.fill();
+    A.cyl(c, cx + 38, cy + 40, 9, 8, '#ef5350', z, '#fffaf0'); A.emoji(c, A.G(cx + 22, cy + 52, z + 6), '🍙', 16);
+    return { smoke: run ? { x: k.x, y: k.y - 4 } : null };
+  },
+  wok(A, c, cx, cy, z, run, t){
+    A.boxZ(c, cx - 42, cy - 30, 82, 60, 38, '#c62828', '#424242', z);
+    const g = A.G(cx - 6, cy - 4, z + 38);
+    if(run){ for(let i = 0; i < 3; i++){ c.fillStyle = ['#ff7043', '#ffb300', '#ffe082'][i]; c.beginPath(); c.moveTo(g.x - 18 + i * 5, g.y); c.quadraticCurveTo(g.x, g.y - 26 + i * 6 - Math.sin(t * 9 + i) * 4, g.x + 18 - i * 5, g.y); c.fill(); } }
+    const w = { x: g.x, y: g.y - 12 };
+    c.fillStyle = '#2b2b2b'; c.beginPath(); c.ellipse(w.x, w.y, 34, 13, 0, 0, Math.PI); c.fill(); c.beginPath(); c.ellipse(w.x, w.y, 34, 10, 0, 0, 7); c.fill();
+    c.fillStyle = '#f6c945'; c.beginPath(); c.ellipse(w.x, w.y, 24, 7, 0, 0, 7); c.fill(); c.fillStyle = '#e53935'; c.beginPath(); c.arc(w.x - 6, w.y, 2.5, 0, 7); c.fill(); c.fillStyle = '#7cb342'; c.beginPath(); c.arc(w.x + 7, w.y - 1, 2.5, 0, 7); c.fill();
+    c.strokeStyle = '#5c3416'; c.lineWidth = 5; c.lineCap = 'round'; c.beginPath(); c.moveTo(w.x + 34, w.y); c.lineTo(w.x + 56, w.y - 8); c.stroke();
+    A.emoji(c, A.G(cx + 40, cy + 46, z + 8), '🥡', 18);
+    return { smoke: run ? { x: w.x, y: w.y - 6 } : null, smokeCol: '#f0f0f0' };
+  },
+  teahouse(A, c, cx, cy, z, run, t){
+    const bx = cx - 38, by = cy - 34;
+    A.boxZ(c, bx, by, 72, 60, 48, '#f9fbe7', '#9e9d24', z, true);
+    A.faceYZ(c, bx, by, 72, 60, z, 26, 46, 0, 32, '#5d4037', A.OL);
+    const P = (x, y, h) => A.G(x, y, z + h);
+    A.poly(c, [P(bx - 10, by - 10, 50), P(bx + 82, by - 10, 50), P(bx + 82, by + 70, 50), P(bx - 10, by + 70, 50)], '#827717', A.OL);
+    A.poly(c, [P(bx - 4, by - 4, 50), P(bx + 76, by - 4, 50), P(bx + 76, by + 64, 50), P(bx - 4, by + 64, 50), ], '#9e9d24');
+    const tp = A.dome(c, bx + 36, by + 30, 18, 22, '#c0ca33', z + 50);
+    const pot = A.dome(c, cx + 34, cy + 40, 10, 14, '#ffffff', z); c.strokeStyle = '#ffffff'; c.lineWidth = 3; c.beginPath(); c.moveTo(pot.x + 12, pot.by - 6); c.lineTo(pot.x + 20, pot.by - 14); c.stroke();
+    A.emoji(c, A.G(cx + 46, cy + 30, z + 2), '🍋', 12);
+    return { smoke: run ? { x: pot.x + 20, y: pot.by - 16 } : null };
+  },
+  toyshop(A, c, cx, cy, z, run, t){
+    const top = A.kiosk(A, c, cx, cy, z, '#fff8e1', '#29b6f6', ['🧸', '🪀', '🎈']);
+    const b = { x: top.x - 4, y: top.y - 16 + (run ? Math.sin(t * 4) * 3 : 0) };
+    const circ = (dx, dy, r, col) => { c.fillStyle = col; c.beginPath(); c.arc(b.x + dx, b.y + dy, r, 0, 7); c.fill(); };
+    circ(-10, -18, 6, '#a1683f'); circ(10, -18, 6, '#a1683f'); circ(0, 0, 16, '#b07a45'); circ(0, -12, 12, '#b07a45'); circ(0, -8, 5, '#e2b98a'); circ(0, 4, 8, '#e2b98a');
+    c.fillStyle = '#222'; [[-4, -14], [4, -14]].forEach(([dx, dy]) => { c.beginPath(); c.arc(b.x + dx, b.y + dy, 1.6, 0, 7); c.fill(); });
+    const k = A.G(cx + 44, cy + 40, z + 60 + (run ? Math.sin(t * 2) * 5 : 0)); c.fillStyle = '#ff7043'; c.beginPath(); c.moveTo(k.x, k.y - 14); c.lineTo(k.x + 10, k.y); c.lineTo(k.x, k.y + 14); c.lineTo(k.x - 10, k.y); c.fill();
+    c.strokeStyle = '#555'; c.lineWidth = 1; const g = A.G(cx + 44, cy + 40, z); c.beginPath(); c.moveTo(k.x, k.y + 14); c.quadraticCurveTo(k.x - 10, (k.y + g.y) / 2, g.x, g.y); c.stroke();
+    return {};
+  },
+  soapmaker(A, c, cx, cy, z, run, t){
+    const pot = A.cyl(c, cx - 14, cy - 14, 28, 34, '#6a1b9a', z, '#ce93d8');
+    A.hoop(c, pot, 6, '#4a148c'); A.hoop(c, pot, 28, '#4a148c');
+    if(run || true){ for(let i = 0; i < 6; i++){ const ph = (t * 0.6 + i / 6) % 1; c.globalAlpha = 1 - ph; c.strokeStyle = '#e1bee7'; c.lineWidth = 1.5; c.beginPath(); c.arc(pot.x + Math.sin(i * 2 + t) * 18, pot.y - 6 - ph * 50, 3 + ph * 5, 0, 7); c.stroke(); } c.globalAlpha = 1; }
+    A.boxZ(c, cx + 14, cy + 18, 44, 28, 20, '#a86d34', '#c98f4f', z);
+    [['#f48fb1', 0], ['#80deea', 1], ['#fff59d', 2]].forEach(([col, i]) => A.boxZ(c, cx + 18 + i * 12, cy + 26, 10, 12, 7, col, A.shade(col, 1.1), z + 20 + 0));
+    return {};
+  },
+});
+
 // Завод = площадка + свой механизм + табличка. Для неизвестного — домик, как раньше.
 Art.houseFactory = Art.factory;
 Art.factory = function(ctx, x, y, W, H, B, working, time, key){
