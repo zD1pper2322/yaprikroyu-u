@@ -6,7 +6,7 @@ Object.assign(Art, {
   /* ---------- спрайты мелочей на траве (рисуются один раз) ---------- */
   sprites: null,
   makeSprites(){
-    const mk = (w, h, fn) => { const cv = document.createElement('canvas'); cv.width = w * 2; cv.height = h * 2; const c = cv.getContext('2d'); c.scale(2, 2); fn(c); return { cv, w, h }; };
+    const mk = (w, h, fn) => { const cv = document.createElement('canvas'); cv.width = w * 4; cv.height = h * 4; const c = cv.getContext('2d'); c.scale(4, 4); fn(c); return { cv, w, h }; };
     const tuft = (cols, n, hgt) => mk(26, 22, c => {
       c.fillStyle = '#00000022'; c.beginPath(); c.ellipse(13, 19, 9, 3, 0, 0, 7); c.fill();
       for(let i = 0; i < n; i++){

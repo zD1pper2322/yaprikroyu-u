@@ -30,7 +30,7 @@ const Engine = {
     requestAnimationFrame(t => this.frame(t));
   },
   resize(){
-    this.dpr = Math.min(2, window.devicePixelRatio || 1);
+    this.dpr = Math.min(3, window.devicePixelRatio || 1);   // чёткая картинка на телефонах с плотным экраном
     const r = this.cv.getBoundingClientRect();
     this.W = r.width; this.H = r.height;
     this.cv.width = Math.round(this.W * this.dpr); this.cv.height = Math.round(this.H * this.dpr);
@@ -206,6 +206,7 @@ const Engine = {
     let c = this.ctx; const z = this.cam.z, st = this.st;
     c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     c.clearRect(0, 0, this.W, this.H);
+    c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high';
     c.setTransform(this.dpr * z, 0, 0, this.dpr * z, -this.cam.x * z * this.dpr, -this.cam.y * z * this.dpr);
     const objs = this.objects();
     const T = TILE;
