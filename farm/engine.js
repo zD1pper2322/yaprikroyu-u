@@ -218,7 +218,8 @@ const Engine = {
         const p = st.plots[o.idx], ps = plotState(p);
         Art.plotFlat(c, x, y, w);
       } else if(o.type === 'house') Art.penFlat(c, x, y, w, h);
-      else if(o.type === 'factory' || o.type === 'storage') Art.shadowFlat(c, x, y, w, h);
+      else if(o.type === 'factory') Art.shadowFlat(c, x + 2, y + 2, w - 10, h - 10);
+      else if(o.type === 'storage') Art.shadowFlat(c, x, y, w, h);
       else if(o.type === 'decor' && o.kind === 'pond') Art.pondFlat(c, x, y, w, h);
       if(this.moving && this.moving.key === o.key){ c.fillStyle = this.moving.ok ? '#3fcf4a55' : '#e5533d66'; c.fillRect(x, y, w, h); }
     }
@@ -238,6 +239,11 @@ const Engine = {
     });
     // 2) задний забор хутора
     const W = MAP_W * T, H = MAP_H * T;
+    if(!Art.scenery) Art.makeScenery();
+    const view = { x0: this.cam.x, y0: this.cam.y, x1: this.cam.x + this.W / z, y1: this.cam.y + this.H / z };
+    Art.drawTrees(c, Art.scenery.back, time, view);
+    if(Art.inView(Art.P(9.8 * T, -3.6 * T), view, 260)) Art.farmhouse(c, time);
+    if(Art.inView(Art.P(2 * T, -2 * T), view, 200)) Art.silo(c);
     const bp = Boat.pos(st);
     if(bp){ const q = Art.P(bp.x, bp.y); Art.boat(c, q.x, q.y, time, bp.docked ? st.boat.crates : []); }
     Art.fenceLine(c, 0, 0, W, 0); Art.fenceLine(c, 0, 0, 0, H, [5.8 * T, 8.2 * T]);
@@ -288,7 +294,7 @@ const Engine = {
       } else if(o.type === 'factory'){
         const B = BUILDINGS[o.bk], q = st.buildings[o.bk].queue || [];
         const run = q.find(j => j.start <= now() && j.end > now()), done = q.filter(j => j.end <= now());
-        add(depth, () => this.squash(c, o.key, Art.P(x + w / 2, y + h), time, () => Art.factory(c, x, y, w, h, B, !!run, time)));
+        add(depth, () => this.squash(c, o.key, Art.P(x + w / 2, y + h), time, () => Art.factory(c, x, y, w, h, B, !!run, time, o.bk)));
         const top = Art.P(x + w / 2, y + h / 2);
         if(done.length) ovl(() => Art.bubble(c, top.x, top.y - 150, ITEMS[done[0].item].e, { badge: done.length > 1 ? done.length : 0 }));
         else if(run){ const pct = (now() - run.start) / (run.end - run.start); const bp = Art.P(x + w, y + h); ovl(() => { c.fillStyle = '#00000066'; c.beginPath(); c.roundRect(bp.x - 70, bp.y - 4, 70, 10, 5); c.fill(); c.fillStyle = '#7ad04f'; c.beginPath(); c.roundRect(bp.x - 70, bp.y - 4, 70 * pct, 10, 5); c.fill(); }); }
@@ -320,6 +326,7 @@ const Engine = {
     const ovN = overlays.length;
     // 4) передний забор
     Art.fenceLine(c, 0, H, W, H); Art.fenceLine(c, W, 0, W, H);
+    Art.drawTrees(c, Art.scenery.front, time, view);
     const bob = Math.sin(time * 3) * 3;
     c.save(); c.translate(0, bob); overlays.forEach(f => f.fn()); c.restore();
     this.drawParts(c, this.dt);

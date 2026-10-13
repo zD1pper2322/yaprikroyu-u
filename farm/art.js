@@ -404,14 +404,14 @@ const Art = {
     // ствол
     ctx.fillStyle = '#5c3416'; ctx.beginPath(); ctx.moveTo(px - 8, py); ctx.lineTo(px - 5, py - 46); ctx.lineTo(px + 5, py - 46); ctx.lineTo(px + 8, py); ctx.fill();
     ctx.fillStyle = '#8a5428'; ctx.beginPath(); ctx.moveTo(px - 6, py - 1); ctx.lineTo(px - 3.5, py - 46); ctx.lineTo(px + 1.5, py - 46); ctx.lineTo(px + 1, py - 1); ctx.fill();
-    if(kind === 'tree'){
+    if(kind === 'tree' || kind === 'oak'){
       const blob = (pts, col) => { ctx.fillStyle = col; pts.forEach(([dx, dy, r]) => { ctx.beginPath(); ctx.arc(px + dx + sway, py + dy, r, 0, 7); ctx.fill(); }); };
       const base = [[-22, -60, 22], [20, -60, 22], [0, -78, 26], [-12, -46, 18], [14, -46, 18], [0, -56, 24]];
       blob(base.map(([a, b, r]) => [a, b, r + 2.5]), '#1f5e25');
       blob(base, '#2f8a34');
       blob([[-10, -70, 17], [10, -72, 15], [-18, -56, 13], [4, -84, 14]], '#47aa3e');
       blob([[-14, -76, 8], [-2, -88, 6], [-24, -62, 6]], '#7fd060');
-      [[-16, -52], [14, -64], [6, -46], [-4, -80], [22, -52], [-24, -66]].forEach(([dx, dy]) => {
+      if(kind === 'tree') [[-16, -52], [14, -64], [6, -46], [-4, -80], [22, -52], [-24, -66]].forEach(([dx, dy]) => {
         ctx.fillStyle = '#d92f2f'; ctx.beginPath(); ctx.arc(px + dx + sway, py + dy, 5, 0, 7); ctx.fill();
         ctx.fillStyle = '#ff9a8a'; ctx.beginPath(); ctx.arc(px + dx + sway - 1.6, py + dy - 1.6, 1.6, 0, 7); ctx.fill();
       });
