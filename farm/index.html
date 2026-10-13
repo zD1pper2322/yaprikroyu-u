@@ -181,6 +181,26 @@ body.visiting #hudGemsBtn{display:none}
 .crates{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
 .crate{background:#f3dfb8;border:3px solid #a8743c;border-radius:12px;padding:8px 4px;display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center}
 .crate .ce{font-size:30px}.crate small{font-size:11px;color:var(--ink-2);min-height:26px}.crate.can{box-shadow:0 0 0 3px var(--gold)}.crate.done{background:#dff1cf;border-color:var(--grass-d)}
+.stabs{margin-bottom:10px}.stabs button{position:relative;font-size:12px;padding:8px 2px}
+.mini-dot{position:absolute;top:3px;right:4px;width:8px;height:8px;border-radius:50%;background:var(--red)}
+.chat{height:min(46vh,360px);overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:8px;background:#fff8e8;border:2px solid var(--wood-d);border-radius:14px}
+.msg{align-self:flex-start;max-width:82%;background:var(--white);border:2px solid var(--wood-d);border-radius:14px 14px 14px 4px;padding:6px 10px;display:flex;flex-direction:column;font-size:14px;word-wrap:break-word}
+.msg b{font-size:11.5px;color:var(--grass-d)}.msg small{align-self:flex-end;font-size:10px;color:var(--ink-2)}
+.msg.me{align-self:flex-end;background:#e5f6d8;border-color:var(--grass-d);border-radius:14px 14px 4px 14px}
+.msg.sys{align-self:center;background:#fff3c4;border:0;border-radius:10px;font-size:12px;font-weight:700;text-align:center}
+.quick{display:flex;gap:6px;overflow-x:auto;padding:8px 0}.quick .chip{white-space:nowrap}
+.chat-in{display:flex;gap:6px}.chat-in input{flex:1;min-width:0;font:500 16px var(--body);padding:10px 12px;border-radius:12px;border:2px solid var(--wood-d);background:var(--white);outline:none}
+.qty{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.qty .btn{flex:1;min-width:52px}
+.top{display:flex;flex-direction:column;gap:6px}
+.top-row{display:grid;grid-template-columns:34px 1fr auto;grid-template-rows:auto auto;align-items:center;column-gap:8px;background:var(--white);border:2px solid var(--wood-d);border-radius:12px;padding:6px 10px}
+.top-row .tp{grid-row:1/3;font-size:20px;text-align:center;font-weight:800}.top-row small{grid-column:2/4;font-size:11px;color:var(--ink-2)}.top-row .tl{font-weight:800}
+.top-row.me{background:#e5f6d8;border-color:var(--grass-d)}
+.card-lite .top-row{margin-top:6px}
+.fbar{position:relative;height:26px;background:#00000018;border-radius:14px;overflow:hidden;margin:8px 0;border:2px solid var(--wood-d)}
+.fbar i{display:block;height:100%;background:linear-gradient(90deg,#7ad04f,#4caf50)}.fbar span{position:absolute;inset:0;display:grid;place-items:center;font-weight:800;font-size:13px}
+.fstages{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}
+.fstage{background:var(--white);border:2px solid var(--wood-d);border-radius:12px;padding:6px 4px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12px;text-align:center}
+.fstage>b{font-size:16px}.fstage small{font-size:10.5px;color:var(--ink-2)}.fstage.ok{border-color:var(--grass-d);background:#e5f6d8}
 #tut{position:absolute;left:12px;right:12px;bottom:calc(92px + env(safe-area-inset-bottom,0px));z-index:6;background:#fffdf6f0;border:3px solid var(--gold-d);border-radius:16px;padding:10px 40px 10px 12px;font-size:14px;font-weight:600;line-height:1.35;box-shadow:0 4px 12px #0003;max-width:520px;margin:0 auto}
 #tut button{position:absolute;right:8px;top:8px;width:26px;height:26px;border-radius:50%;background:var(--wood);font-size:13px}
 #hint{position:absolute;left:50%;top:calc(80px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:6;background:#2b2416dd;color:var(--white);padding:6px 12px;border-radius:10px;font-weight:700;font-size:13px}
@@ -250,7 +270,7 @@ body.visiting #hudGemsBtn{display:none}
     <button id="btnShop"><span>🛒</span>Магазин</button>
     <button id="btnOrders"><span>📋</span>Заказы<i class="dot" id="ordersDot" hidden></i></button>
     <button id="btnDaily"><span>🎯</span>Задания<i class="dot" id="dailyDot" hidden></i></button>
-    <button id="btnFriends"><span>👋</span>Соседи</button>
+    <button id="btnFriends"><span>👋</span>Соседи<i class="dot" id="friendsDot" hidden></i></button>
     <button id="btnSettings"><span>⚙️</span>Ещё</button>
   </nav>
   <div id="visitBar" hidden></div>
@@ -272,5 +292,6 @@ body.visiting #hudGemsBtn{display:none}
 <script src="extra.js"></script>
 <script src="engine.js"></script>
 <script src="net.js"></script>
+<script src="social.js"></script>
 </body>
 </html>

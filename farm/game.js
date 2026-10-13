@@ -142,6 +142,7 @@ function gainXp(n){
     ];
     S.coins += 20 * S.lvl;
     const lg = S.lvl % 5 === 0 ? 3 : 1; addGems(lg);
+    if(S.lvl >= 3 && window.Social) Social.sys(`🎉 ${S.nick} достиг ${S.lvl} уровня!`);
     Sound.play('level'); buzz([30, 40, 60]);
     { const c = Engine.toWorld(window.innerWidth / 2, window.innerHeight / 2); Engine.burst(c.x, c.y, 'confetti', { n: 60, lift: 60 }); }
     showSheet(`🎉 Уровень ${S.lvl}!`, `<p class="big">Награда: 🪙 ${20 * S.lvl} и 💎 ${lg}</p>${opened.length ? `<p>Открыто:</p><div class="chips">${opened.map(o => `<span class="chip">${o}</span>`).join('')}</div>` : ''}<p class="hint">Новые постройки — в 🛒 Магазине.</p><button class="btn primary" data-close>Отлично</button>`);
@@ -327,6 +328,7 @@ function completeOrder(i){
   S.orders[i] = null; S.orderCooldown[i] = now() + 20 * 1000;
   Sound.play('truck');
   Tut.on('order'); Daily.on('order');
+  S.stats = S.stats || {}; S.stats.orders = (S.stats.orders || 0) + 1;
   save(); closeSheet();
   toast(`🚚 Грузовик повёз заказ. Через ${TRUCK_TIME} секунд привезёт 🪙 ${o.coins}`);
 }
@@ -724,5 +726,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if(sheetKind === 'orders') openOrders();
     else if(sheetKind && sheetKind.startsWith('factory:')) openFactory(sheetKind.slice(8));
     else if(sheetKind === 'boat') openBoat();
+    Social.dot();
   }, 1000);
 });

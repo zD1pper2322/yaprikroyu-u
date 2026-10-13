@@ -73,7 +73,8 @@ const Net = {
     if(!S) return;
     try{
       await api(`states/${S.pid}`, 'PUT', S);
-      await api(`players/${S.pid}`, 'PATCH', { nick: S.nick, lvl: S.lvl, updatedAt: S.updatedAt });
+      const st = S.stats || {};
+      await api(`players/${S.pid}`, 'PATCH', { nick: S.nick, lvl: S.lvl, xp: S.xp, orders: st.orders || 0, helps: st.helps || 0, updatedAt: S.updatedAt });
       this.setOnline(true);
     }catch(e){ this.setOnline(false); }
   },
@@ -117,6 +118,7 @@ const Net = {
         }
       }
       if(changed) save();
+      await Social.sync();
       if(sheetOpen('friends')) this.openFriends(true);
     }catch(e){ this.setOnline(false); }
   },
@@ -128,6 +130,7 @@ const Net = {
     try{
       await api(`help/${fid}`, 'POST', { from: S.pid, fromNick: S.nick, ts: Date.now() });
       S.helped[fid] = Date.now();
+      S.stats = S.stats || {}; S.stats.helps = (S.stats.helps || 0) + 1;
       S.coins += 10; gainXp(3);
       Sound.play('coin');
       toast('💧 Полито! +🪙 10, +⭐ 3');
@@ -225,13 +228,14 @@ const Net = {
     const list = others.map(([pid, p]) => {
       const n = forSale.filter(([, l]) => l.seller === pid).length;
       return `<div class="friend"><span class="fa">🏡</span><div class="fi"><b>${esc(p.nick)}</b><small>ур. ${p.lvl || 1} · ${ago(p.updatedAt || 0)}${n ? ` · 🏪 ${n} товар.` : ''}</small></div>
+        <button class="btn sm ghost" data-gift="${esc(pid)}" ${Social.canGift(pid) ? '' : 'disabled'} title="Подарок">🎁</button>
         <button class="btn sm" data-visit="${esc(pid)}">В гости</button></div>`;
     }).join('') || `<p class="hint">Пока вы тут один. Отправьте друзьям ссылку на игру — они появятся здесь.</p>`;
     const market = forSale.sort((a, b) => b[1].ts - a[1].ts).slice(0, 30).map(([id, l]) => `<div class="offer">
         <span class="oe">${ITEMS[l.item].e}<sub>×${l.qty}</sub></span><div class="oi"><b>${ITEMS[l.item].n}</b><small>${esc(l.sellerNick)}</small></div>
         <button class="btn primary sm" data-buy="${esc(id)}">🪙 ${l.price}</button></div>`).join('') || '<p class="hint">Соседи пока ничего не продают.</p>';
     const scroll = quiet ? document.querySelector('.sheet-box')?.scrollTop : 0;
-    showSheet('👋 Соседи', `
+    showSheet('👋 Соседи', `${Social.tabs('friends')}
       <div class="card-lite"><b>🏪 Моя лавка</b><small>Друзья покупают ваши товары. Мест: ${slots}</small><div class="stalls">${shop}</div></div>
       <div class="card-lite"><b>🛒 Рынок соседей</b><div class="offers">${market}</div></div>
       <div class="card-lite"><b>🏡 Соседи</b><small>Заходите в гости и поливайте грядки — им быстрее, вам монеты</small>${list}</div>
@@ -240,6 +244,8 @@ const Net = {
       root.querySelectorAll('[data-unlist]').forEach(b => b.onclick = () => this.cancelListing(b.dataset.unlist));
       root.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => this.buy(b.dataset.buy));
       root.querySelectorAll('[data-visit]').forEach(b => b.onclick = () => this.visit(b.dataset.visit));
+      root.querySelectorAll('[data-gift]').forEach(b => b.onclick = () => Social.openGift(b.dataset.gift, this.players[b.dataset.gift]?.nick || 'соседа'));
+      Social.bindTabs(root);
     }, null, 'friends');
     if(quiet && scroll) document.querySelector('.sheet-box').scrollTop = scroll;
   },
