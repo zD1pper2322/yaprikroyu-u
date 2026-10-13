@@ -27,6 +27,26 @@ function ago(ts){
   if(h < 24) return `был ${h} ч назад`;
   return `был ${Math.round(h / 24)} дн назад`;
 }
+// «В сети»: игра отмечается в базе раз в минуту, пока открыта. Не отмечался 2,5 минуты — не в сети.
+const ONLINE_MS = 150000;
+function isOnline(pid){ const p = (Net.allPlayers || Net.players || {})[pid]; return !!p && now() - (p.online || 0) < ONLINE_MS; }
+function seenText(pid){
+  if(isOnline(pid)) return '<span class="on-dot"></span>в сети';
+  const p = (Net.allPlayers || Net.players || {})[pid] || {};
+  return ago(Math.max(p.online || 0, p.updatedAt || 0)).replace('сейчас в игре', 'был только что');
+}
+const onDot = pid => isOnline(pid) ? '<span class="on-dot"></span>' : '';
+const Presence = {
+  beat(on = true){
+    if(!S) return;
+    const body = JSON.stringify({ online: on ? Date.now() : 0 });
+    fetch(`${DB_URL}/players/${S.pid}.json`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }).catch(() => {});
+    const me = (Net.allPlayers || {})[S.pid]; if(me) me.online = on ? Date.now() : 0;
+  },
+};
+setInterval(() => { if(document.visibilityState === 'visible') Presence.beat(); }, 60000);
+document.addEventListener('visibilitychange', () => Presence.beat(document.visibilityState === 'visible'));
+window.addEventListener('pagehide', () => Presence.beat(false));
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 
 const Net = {
@@ -228,9 +248,11 @@ const Net = {
     const others = Object.entries(this.players).filter(([pid, p]) => pid !== S.pid && p && p.nick)
       .sort((a, b) => (b[1].updatedAt || 0) - (a[1].updatedAt || 0));
     const forSale = Object.entries(this.market).filter(([, l]) => l && l.seller !== S.pid && !l.buyer);
+    others.sort((a, b) => isOnline(b[0]) - isOnline(a[0]));
+    const onlineNow = others.filter(([pid]) => isOnline(pid));
     const list = others.map(([pid, p]) => {
       const n = forSale.filter(([, l]) => l.seller === pid).length;
-      return `<div class="friend"><span class="fa">🏡</span><div class="fi"><b>${esc(p.nick)}</b><small>ур. ${p.lvl || 1} · ${ago(p.updatedAt || 0)}${n ? ` · 🏪 ${n} товар.` : ''}</small></div>
+      return `<div class="friend"><span class="fa">🏡</span><div class="fi"><b>${esc(p.nick)}</b><small>ур. ${p.lvl || 1} · ${seenText(pid)}${n ? ` · 🏪 ${n} товар.` : ''}</small></div>
         <button class="btn sm ghost" data-gift="${esc(pid)}" ${Social.canGift(pid) ? '' : 'disabled'} title="Подарок">🎁</button>
         <button class="btn sm" data-visit="${esc(pid)}">В гости</button></div>`;
     }).join('') || `<p class="hint">Пока вы тут один. Отправьте друзьям ссылку на игру — они появятся здесь.</p>`;
@@ -241,7 +263,7 @@ const Net = {
     showSheet('👋 Соседи', `${Social.tabs('friends')}
       <div class="card-lite"><b>🏪 Моя лавка</b><small>Друзья покупают ваши товары. Мест: ${slots}</small><div class="stalls">${shop}</div></div>
       <div class="card-lite"><b>🛒 Рынок соседей</b><div class="offers">${market}</div></div>
-      <div class="card-lite"><b>🏡 Соседи</b><small>Заходите в гости и поливайте грядки — им быстрее, вам монеты</small>${list}</div>
+      <div class="card-lite"><b>🏡 Соседи · <span class="on-dot"></span>в сети: ${onlineNow.length}</b><small>${onlineNow.length ? 'Сейчас играют: ' + onlineNow.map(([, p]) => esc(p.nick)).join(', ') : 'Сейчас никого нет в игре'}</small><small>Заходите в гости и поливайте грядки — им быстрее, вам монеты</small>${list}</div>
       <p class="hint">${this.online ? '🟢 Связь есть' : '🔴 Нет связи — игра сохраняется на телефоне'}</p>`, root => {
       root.querySelector('#sellBtn')?.addEventListener('click', () => this.openSell());
       root.querySelectorAll('[data-unlist]').forEach(b => b.onclick = () => this.cancelListing(b.dataset.unlist));
@@ -317,7 +339,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const local = loadLocal();
   if(local){
     startGame(local);
-    Net.sync();
+    Net.sync(); Presence.beat();
   }
   let mode = 'new';
   const setMode = m => {
@@ -337,7 +359,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // админ: тот же логин и пароль, что в «Я прикрою!»; если пароль не подошёл — обычный вход
       let st = Admin.isAdminNick(nick) ? await Admin.enter(nick, pin).catch(() => null) : null;
       if(!st) st = mode === 'new' ? await Net.register(nick, pin) : await Net.login(nick, pin);
-      startGame(st); Net.setOnline(true); Net.sync();
+      startGame(st); Net.setOnline(true); Net.sync(); Presence.beat();
     }catch(e){
       err.textContent = /fetch|network|Failed/i.test(e.message) ? 'Нет связи с интернетом — попробуйте ещё раз' : e.message;
     }

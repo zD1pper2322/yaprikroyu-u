@@ -106,7 +106,7 @@ async function openAdmin(fresh){
   if(fresh){ try{ Net.allPlayers = (await api('players')) || {}; Admin.hoods = (await api('hoods')) || {}; }catch(e){ toast('Нет связи — показываю что было'); } }
   const all = Object.entries(Net.allPlayers || {}).filter(([pid, p]) => p && p.nick && pid !== S.pid).sort((a, b) => (b[1].updatedAt || 0) - (a[1].updatedAt || 0));
   const rows = all.map(([pid, p]) => `<div class="top-row"><span class="tp">🧑‍🌾</span><b>${esc(p.nick)}</b><span class="tl">ур. ${p.lvl || 1}</span>
-      <small>${ago(p.updatedAt || 0)}${p.hidden ? ' · скрыт' : ''} · <a href="#" data-av="${esc(pid)}">в гости</a> · <a href="#" data-aren="${esc(pid)}">логин/PIN</a> · <a href="#" data-agift="${esc(pid)}">выдать</a> · <a href="#" data-adel="${esc(pid)}">удалить</a></small></div>`).join('') || '<p class="hint">Игроков пока нет.</p>';
+      <small>${seenText(pid)}${p.hidden ? ' · скрыт' : ''} · <a href="#" data-av="${esc(pid)}">в гости</a> · <a href="#" data-aren="${esc(pid)}">логин/PIN</a> · <a href="#" data-agift="${esc(pid)}">выдать</a> · <a href="#" data-adel="${esc(pid)}">удалить</a></small></div>`).join('') || '<p class="hint">Игроков пока нет.</p>';
   const hoods = Object.entries(Admin.hoods || {}).filter(([, h]) => h && h.name);
   const hrows = hoods.map(([id, h]) => `<div class="hood-row"><span class="he">${esc(h.emoji || '🏡')}</span><div class="hi"><b>${esc(h.name)}</b><small>👥 ${Object.keys(h.members || {}).length} · 👑 ${esc(h.ownerNick || '')}</small>
       <small>${Object.entries(h.members || {}).map(([mp, m]) => `${esc(m.nick)} <a href="#" data-hkick="${esc(id)}|${esc(mp)}">✕</a>`).join(', ')}</small></div>

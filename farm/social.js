@@ -123,7 +123,7 @@ const Social = {
     const rows = Object.entries(Net.players).filter(([, p]) => p && p.nick)
       .sort((a, b) => (b[1].lvl || 1) - (a[1].lvl || 1) || (b[1].xp || 0) - (a[1].xp || 0));
     const medal = i => ['🥇', '🥈', '🥉'][i] || (i + 1);
-    const list = rows.map(([pid, p], i) => `<div class="top-row ${pid === S.pid ? 'me' : ''}"><span class="tp">${medal(i)}</span><b>${esc(p.nick)}</b>
+    const list = rows.map(([pid, p], i) => `<div class="top-row ${pid === S.pid ? 'me' : ''}"><span class="tp">${medal(i)}</span><b>${onDot(pid)}${esc(p.nick)}</b>
       <span class="tl">ур. ${p.lvl || 1}</span><small>📋 ${p.orders || 0} · 💧 ${p.helps || 0}</small></div>`).join('') || '<p class="hint">Пока пусто.</p>';
     showSheet('👋 Соседи', `${this.tabs('top')}<div class="top">${list}</div><p class="hint">📋 — отправлено заказов, 💧 — сколько раз помогал соседям.</p>`, root => this.bindTabs(root), null, 'top');
   },

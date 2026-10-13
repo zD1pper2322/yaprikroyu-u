@@ -196,8 +196,8 @@ const Hood = {
         <div class="quick">${['👋 Привет, соседи!', '🙏 Нужна помощь', '🎁 Спасибо!', '🚚 Кто что продаёт?', '😄'].map(q => `<button class="chip" data-q="${q}">${q}</button>`).join('')}</div>
         <form class="chat-in" id="hoodForm"><input id="hoodText" maxlength="200" placeholder="Сообщение соседству" autocomplete="off"><button class="btn primary sm">➤</button></form>`;
     } else {
-      body = `<div class="top">${mem.map(m => `<div class="top-row ${m.pid === S.pid ? 'me' : ''}"><span class="tp">${m.role === 'leader' ? '👑' : '🧑‍🌾'}</span><b>${esc(m.nick)}</b><span class="tl">ур. ${m.lvl || 1}</span>
-          <small>${m.role === 'leader' ? 'глава' : 'сосед'}${m.pid !== S.pid ? ` · <a href="#" data-visit="${esc(m.pid)}">в гости</a>` : ''}${lead && m.pid !== S.pid ? ` · <a href="#" data-lead="${esc(m.pid)}">сделать главой</a> · <a href="#" data-kick="${esc(m.pid)}">исключить</a>` : ''}</small></div>`).join('')}</div>
+      body = `<div class="top">${mem.map(m => `<div class="top-row ${m.pid === S.pid ? 'me' : ''}"><span class="tp">${m.role === 'leader' ? '👑' : '🧑‍🌾'}</span><b>${onDot(m.pid)}${esc(m.nick)}</b><span class="tl">ур. ${m.lvl || 1}</span>
+          <small>${m.role === 'leader' ? 'глава' : 'сосед'} · ${m.pid === S.pid ? '<span class="on-dot"></span>в сети' : seenText(m.pid)}${m.pid !== S.pid ? ` · <a href="#" data-visit="${esc(m.pid)}">в гости</a>` : ''}${lead && m.pid !== S.pid ? ` · <a href="#" data-lead="${esc(m.pid)}">сделать главой</a> · <a href="#" data-kick="${esc(m.pid)}">исключить</a>` : ''}</small></div>`).join('')}</div>
         ${lead ? '<button class="btn" id="hEdit">✏️ Изменить описание</button>' : ''}
         <button class="btn" id="hLeave">🚪 Выйти из соседства</button>`;
     }
