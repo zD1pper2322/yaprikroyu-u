@@ -30,6 +30,8 @@ function migrate(st){
   st.decor = st.decor || []; st.orders = st.orders || []; st.orderCooldown = st.orderCooldown || {}; st.helped = st.helped || {};
   st.buildings = st.buildings || {};
   if(st.sound === undefined) st.sound = true;
+  if(st.music === undefined) st.music = true;
+  if(st.vibro === undefined) st.vibro = true;
   if(st.tut === undefined) st.tut = st.v >= 2 ? 0 : 99;   // старым игрокам обучение не показываем
   if((st.v || 1) < 3){
     // новая раскладка под изометрический вид: всё расставляется заново
@@ -123,6 +125,9 @@ function fmtTime(sec){
   const h = Math.floor(m / 60), mm = m % 60;
   return mm ? `${h} ч ${mm} мин` : `${h} ч`;
 }
+const CROP_COLORS = { wheat:['#f2c94c','#e0a933','#fff0a8'], corn:['#f9d84a','#7cb342','#fff59d'], carrot:['#f08a24','#5fa83a','#ffb066'], cane:['#9ccc65','#689f38','#dcedc8'],
+  tomato:['#e5533d','#ff8a65','#5fa83a'], strawberry:['#d62f4b','#ff7b93','#5fa83a'], pumpkin:['#f39c12','#e67e22','#5fa83a'] };
+function buzz(p){ if(S && S.vibro && navigator.vibrate) try{ navigator.vibrate(p); }catch(e){} }
 const listStr = map => Object.entries(map).map(([k, n]) => `${ITEMS[k].e}×${n}`).join(' ');
 
 function gainXp(n){
@@ -136,7 +141,8 @@ function gainXp(n){
       ...Object.keys(DECOR).filter(k => DECOR[k].lvl === S.lvl).map(k => DECOR[k].e + ' ' + DECOR[k].n),
     ];
     S.coins += 20 * S.lvl;
-    Sound.play('level');
+    Sound.play('level'); buzz([30, 40, 60]);
+    { const c = Engine.toWorld(window.innerWidth / 2, window.innerHeight / 2); Engine.burst(c.x, c.y, 'confetti', { n: 60, lift: 60 }); }
     showSheet(`🎉 Уровень ${S.lvl}!`, `<p class="big">Награда: 🪙 ${20 * S.lvl}</p>${opened.length ? `<p>Открыто:</p><div class="chips">${opened.map(o => `<span class="chip">${o}</span>`).join('')}</div>` : ''}<p class="hint">Новые постройки — в 🛒 Магазине.</p><button class="btn primary" data-close>Отлично</button>`);
     fillOrders();
   }
@@ -158,6 +164,7 @@ function plant(i, crop){
     S.coins -= cost;
   } else add(crop, -1);
   p.crop = crop; p.start = now(); delete p.helpedBy;
+  Engine.burst((p.gx + 1) * TILE, (p.gy + 1) * TILE, 'dust', { n: 6, lift: 0 });
   Sound.play('plant');
   Tut.on('plant');
   return true;
@@ -171,7 +178,8 @@ function harvest(i){
   gainXp(ITEMS[crop].xp);
   p.crop = null; p.start = 0; delete p.helpedBy;
   Engine.flyFromWorld(ITEMS[crop].e + '×2', p.gx * TILE + TILE, p.gy * TILE + TILE / 2, 'store');
-  Sound.play('harvest');
+  Engine.burst((p.gx + 1) * TILE, (p.gy + 1) * TILE, 'crop', { n: 12, colors: CROP_COLORS[crop], lift: 20 });
+  Sound.play('harvest'); buzz(8);
   Tut.on('harvest');
   return true;
 }
@@ -213,9 +221,9 @@ function collectAnimals(hk){
     if(spaceLeft() < 1) return;
     add(A.makes, 1); gainXp(ITEMS[A.makes].xp); a.start = 0; got++;
     const pos = Engine.animalPos(hk, i);
-    if(pos) Engine.flyFromWorld(ITEMS[A.makes].e, pos.x, pos.y - 20, 'store');
+    if(pos){ Engine.flyFromWorld(ITEMS[A.makes].e, pos.x, pos.y - 20, 'store'); Engine.burst(pos.x, pos.y, 'spark', { n: 8, lift: 30 }); }
   });
-  if(got){ Sound.play('pop'); save(); }
+  if(got){ Sound.play('pop'); buzz(15); save(); }
   else if(spaceLeft() < 1) toast('📦 Амбар полон');
   return got;
 }
@@ -239,6 +247,7 @@ function build(k){
   const spot = findSpot(makeOcc(S), B.w, B.h, B.spot);
   if(!spot) return toast('Нет места на хуторе — уберите декор');
   S.coins -= B.cost;
+  Engine.burst((spot[0] + B.w / 2) * TILE, (spot[1] + B.h / 2) * TILE, 'dust', { n: 30, lift: 0 }); Engine.pulse('building:' + k); buzz(40);
   S.buildings[k] = B.kind === 'house' ? { animals: [{ start: 0 }], gx: spot[0], gy: spot[1] } : { queue: [], gx: spot[0], gy: spot[1] };
   gainXp(5 + B.lvl * 2);
   Sound.play('build');
@@ -269,7 +278,7 @@ function collectFactory(bk){
     add(it, n); gainXp(ITEMS[it].xp * n); q.shift(); got++;
     Engine.flyFromWorld(ITEMS[it].e + (n > 1 ? '×' + n : ''), (B.gx + 1.5) * TILE, B.gy * TILE, 'store');
   }
-  if(got){ Sound.play('pop'); save(); }
+  if(got){ Engine.burst((B.gx + 1.5) * TILE, (B.gy + 1.5) * TILE, 'spark', { n: 14, lift: 90 }); Engine.pulse('building:' + bk); Sound.play('pop'); buzz(15); save(); }
   return got;
 }
 
@@ -325,6 +334,8 @@ function collectTruck(){
   S.coins += S.truck.coins; gainXp(S.truck.xp);
   const f = S.fixed.board;
   Engine.flyFromWorld(`🪙${S.truck.coins}`, (f.gx + 1) * TILE, (f.gy + 2) * TILE, 'coins');
+  { const tp = Engine.truckPos() || { x: (f.gx + 3.2) * TILE, y: 7 * TILE }; Engine.burst(tp.x, tp.y, 'coin', { n: 18, lift: 30 }); }
+  buzz([20, 30, 20]);
   S.truck = null;
   Sound.play('coin');
   save();
@@ -332,8 +343,42 @@ function collectTruck(){
 }
 function skipOrder(i){ S.orders[i] = null; S.orderCooldown[i] = now() + 90 * 1000; save(); openOrders(); }
 
+/* ===================== СОБРАТЬ ВСЁ ===================== */
+function readyCount(){
+  if(!S) return 0;
+  let n = S.plots.filter(p => plotState(p).s === 'ready').length;
+  for(const [k, b] of Object.entries(S.buildings)){
+    const B = BUILDINGS[k];
+    if(B.kind === 'factory') n += factoryDone(k);
+    else n += (b.animals || []).filter(a => animalState(a, B.animal).s === 'ready').length;
+  }
+  if(truckState() === 'back') n++;
+  return n;
+}
+function collectAll(){
+  const before = { ...S.inv }, coins = S.coins;
+  let full = false;
+  S.plots.forEach((p, i) => { if(plotState(p).s === 'ready'){ if(spaceLeft() < 2) full = true; else harvest(i); } });
+  for(const [k, b] of Object.entries(S.buildings)){
+    if(BUILDINGS[k].kind === 'factory'){ if(factoryDone(k)) collectFactory(k); }
+    else collectAnimals(k);
+  }
+  collectTruck();
+  const got = Object.keys(S.inv).map(k => [k, have(k) - (before[k] || 0)]).filter(([, n]) => n > 0);
+  const msg = got.map(([k, n]) => `${ITEMS[k].e}${n}`).join(' ') + (S.coins > coins ? ` 🪙${S.coins - coins}` : '');
+  if(msg.trim()) toast('✨ Собрано: ' + msg);
+  if(full || (readyCount() && spaceLeft() < 2)) setTimeout(() => toast('📦 Амбар полон — продайте что-нибудь или расширьте'), msg.trim() ? 1500 : 0);
+  save();
+  renderAllBtn();
+}
+function renderAllBtn(){
+  const b = $('#btnAll'); if(!b) return;
+  const n = Engine.visit ? 0 : readyCount();
+  b.hidden = !n; if(n) b.querySelector('b').textContent = n;
+}
+
 /* ===================== СКЛАД И МАГАЗИН ===================== */
-function sellOne(k){ if(have(k) < 1) return; add(k, -1); S.coins += ITEMS[k].price; Sound.play('coin'); save(); }
+function sellOne(k){ if(have(k) < 1) return; add(k, -1); S.coins += ITEMS[k].price; Sound.play('coin'); buzz(5); save(); }
 function upgradeStorage(){
   const cost = storageUpgradeCost(S.cap);
   if(S.coins < cost) return toast(`Нужно 🪙 ${cost}`);
@@ -483,11 +528,23 @@ function openShop(tab = 'build'){
   }, null, 'shop');
 }
 function openSettings(){
+  const nState = !('Notification' in window) ? 'none' : Notification.permission;
   showSheet('⚙️ Настройки', `<label class="check"><input type="checkbox" id="snd" ${S.sound ? 'checked' : ''}> Звуки</label>
+    <label class="check"><input type="checkbox" id="mus" ${S.music ? 'checked' : ''}> Музыка</label>
+    <label class="check"><input type="checkbox" id="vib" ${S.vibro ? 'checked' : ''}> Вибрация</label>
+    <label class="check"><input type="checkbox" id="ntf" ${S.notify && nState === 'granted' ? 'checked' : ''} ${nState === 'none' || nState === 'denied' ? 'disabled' : ''}> Уведомления, когда всё готово</label>
+    ${nState === 'denied' ? '<p class="hint">Уведомления запрещены в браузере — разрешите их в настройках сайта.</p>' : nState === 'none' ? '<p class="hint">Этот браузер не умеет показывать уведомления. На телефоне добавьте игру на главный экран.</p>' : '<p class="hint">Придут, пока игра открыта или свёрнута.</p>'}
     <button class="btn" id="tutAgain">Показать подсказки заново</button>
     <div class="me-box">Вы играете как <b></b>. С другого телефона входите с этим именем и PIN.<button class="btn ghost sm" id="logoutBtn">Выйти</button></div>`, sh => {
     sh.querySelector('.me-box b').textContent = S.nick;
     sh.querySelector('#snd').onchange = e => { S.sound = e.target.checked; save(); };
+    sh.querySelector('#mus').onchange = e => { S.music = e.target.checked; save(); Music.sync(); };
+    sh.querySelector('#vib').onchange = e => { S.vibro = e.target.checked; save(); buzz(30); };
+    sh.querySelector('#ntf').onchange = async e => {
+      if(e.target.checked){ const r = await Notification.requestPermission(); S.notify = r === 'granted'; e.target.checked = S.notify; if(S.notify) toast('🔔 Сообщу, когда урожай и заводы будут готовы'); }
+      else S.notify = false;
+      save();
+    };
     sh.querySelector('#tutAgain').onclick = () => { S.tut = 0; save(); closeSheet(); Tut.show(); };
     sh.querySelector('#logoutBtn').onclick = async () => { await Net.pushState(); localStorage.removeItem(SAVE_KEY); location.reload(); };
   });
@@ -529,6 +586,80 @@ const Sound = {
   },
 };
 
+/* ===================== МУЗЫКА (тихая деревенская мелодия) ===================== */
+const Music = {
+  on: false, timer: null, step: 0, gain: null,
+  // пентатоника до-мажор; бас и мелодия меняются по кругу
+  MEL: [[0,2,4,7],[4,7,9,7],[2,4,2,0],[7,9,12,9],[4,2,0,2],[0,4,7,4],[9,7,4,2],[0,0,-1,-1]],
+  BASS: [0, -5, -3, -5, 0, -7, -3, -5],
+  sync(){
+    const want = !!(S && S.music && Sound.ac && document.visibilityState === 'visible');
+    if(want === this.on) return;
+    this.on = want;
+    if(want){
+      const ac = Sound.ac;
+      this.gain = ac.createGain(); this.gain.gain.value = 0.0001; this.gain.connect(ac.destination);
+      this.gain.gain.exponentialRampToValueAtTime(0.05, ac.currentTime + 2);
+      this.next = ac.currentTime + 0.1; this.tick();
+    } else {
+      clearTimeout(this.timer);
+      if(this.gain){ const g = this.gain; try{ g.gain.setTargetAtTime(0.0001, Sound.ac.currentTime, 0.3); }catch(e){} setTimeout(() => g.disconnect(), 1500); this.gain = null; }
+    }
+  },
+  note(semi, t, d, type, vol){
+    const ac = Sound.ac, o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.value = 261.63 * Math.pow(2, semi / 12);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    o.connect(g); g.connect(this.gain); o.start(t); o.stop(t + d + 0.05);
+  },
+  tick(){
+    if(!this.on) return;
+    const ac = Sound.ac, beat = 0.42;
+    while(this.next < ac.currentTime + 1.2){
+      const bar = Math.floor(this.step / 4) % this.MEL.length, i = this.step % 4;
+      const m = this.MEL[bar][i];
+      if(m >= 0) this.note(m + 12, this.next, beat * 0.9, 'triangle', 0.5);
+      if(i === 0) this.note(this.BASS[bar] - 12, this.next, beat * 3.5, 'sine', 0.6);
+      if(i === 2) this.note(this.BASS[bar] - 5, this.next, beat * 1.5, 'sine', 0.25);
+      this.step++; this.next += beat;
+    }
+    this.timer = setTimeout(() => this.tick(), 400);
+  },
+};
+
+/* ===================== УВЕДОМЛЕНИЯ (пока игра открыта или свёрнута) ===================== */
+const Notify = {
+  timer: null,
+  nextEvent(){
+    let best = null;
+    const put = (t, text) => { if(t > now() && (!best || t < best.t)) best = { t, text }; };
+    S.plots.forEach(p => { if(p.crop) put(p.start + ITEMS[p.crop].time * 1000, `${ITEMS[p.crop].e} ${ITEMS[p.crop].n} созрела — пора собирать!`); });
+    for(const [k, b] of Object.entries(S.buildings)){
+      const B = BUILDINGS[k];
+      if(B.kind === 'factory') (b.queue || []).forEach(j => put(j.end, `${B.e} ${B.n}: ${ITEMS[j.item].e} ${ITEMS[j.item].n} готово`));
+      else (b.animals || []).forEach(a => { if(a.start) put(a.start + ANIMALS[B.animal].time * 1000, `${ANIMALS[B.animal].e} ${ANIMALS[B.animal].n}: ${ITEMS[ANIMALS[B.animal].makes].e} можно забирать`); });
+    }
+    if(S.truck) put(S.truck.back, '🚚 Грузовик вернулся с монетами');
+    return best;
+  },
+  plan(){
+    clearTimeout(this.timer);
+    if(!S || !S.notify || !('Notification' in window) || Notification.permission !== 'granted') return;
+    if(document.visibilityState === 'visible') return;
+    const ev = this.nextEvent(); if(!ev) return;
+    this.timer = setTimeout(() => { this.show(ev.text); this.plan(); }, Math.min(ev.t - now() + 500, 2 ** 31 - 1));
+  },
+  async show(text){
+    const opt = { body: text, icon: 'icon-192.png', badge: 'icon-192.png', tag: 'hutorok', renotify: true };
+    try{
+      const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
+      if(reg) return reg.showNotification('Хуторок', opt);
+    }catch(e){}
+    try{ new Notification('Хуторок', opt); }catch(e){}
+  },
+};
+document.addEventListener('visibilitychange', () => { if(!S) return; Music.sync(); Notify.plan(); if(document.visibilityState === 'visible') clearTimeout(Notify.timer); });
+
 /* ===================== ОБУЧЕНИЕ ===================== */
 const TUT = [
   { text:'👆 Нажмите на пустую грядку, затем проведите пальцем от 🌾 по грядкам — так сеют.', ev:'plant' },
@@ -568,12 +699,13 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#sheetClose').onclick = closeSheet;
   $('#sheet').onclick = e => { if(e.target.id === 'sheet') closeSheet(); };
   $('#tut button').onclick = () => { S.tut = 99; save(); Tut.show(); };
-  document.addEventListener('pointerdown', () => Sound.unlock(), { capture: true });
+  document.addEventListener('pointerdown', () => { Sound.unlock(); Music.sync(); }, { capture: true });
+  $('#btnAll').onclick = collectAll;
   if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
   // Окна с таймерами обновляются раз в секунду.
   setInterval(() => {
     if(!S) return;
-    renderHud();
+    renderHud(); renderAllBtn();
     const a = document.activeElement;
     if(a && /INPUT|TEXTAREA|SELECT/.test(a.tagName)) return;
     if(sheetKind === 'orders') openOrders();

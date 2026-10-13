@@ -1,5 +1,5 @@
 // «Хуторок»: офлайн-кэш файлов игры. Запросы к базе идут мимо кэша.
-const CACHE = 'hutorok-v3';
+const CACHE = 'hutorok-v4';
 const FILES = ['./', 'index.html', 'data.js', 'art.js', 'game.js', 'engine.js', 'net.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
@@ -13,4 +13,12 @@ self.addEventListener('fetch', e => {
   }
   if (url.origin !== self.location.origin) return;
   e.respondWith(fetch(req).then(r => { const copy = r.clone(); caches.open(CACHE).then(c => c.put(req, copy)); return r; }).catch(() => caches.match(req).then(h => h || caches.match('index.html'))));
+});
+// Нажатие на уведомление — открыть игру.
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+    const w = list.find(c => c.url.includes('/farm/'));
+    return w ? w.focus() : self.clients.openWindow('./');
+  }));
 });

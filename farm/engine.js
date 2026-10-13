@@ -11,7 +11,9 @@ const Engine = {
   tool: null,           // { kind:'seed'|'sickle'|'feed', crop, hk, used, origin }
   moving: null,         // { key, w, h, gx, gy, ox, oy, ok }
   animals: new Map(),   // позиции животных для анимации
-  last: 0,
+  parts: [],            // частицы (зёрна, монеты, искры)
+  pulses: new Map(),    // «пружинка» построек при нажатии
+  last: 0, dt: 0,
 
   get st(){ return this.visit || S; },
 
@@ -122,7 +124,7 @@ const Engine = {
 
   /* ---------- отрисовка ---------- */
   frame(t){
-    const dt = Math.min(0.05, (t - (this.last || t)) / 1000); this.last = t;
+    const dt = Math.min(0.05, (t - (this.last || t)) / 1000); this.last = t; this.dt = dt;
     if(this.camTarget){
       this.cam.x += (this.camTarget.x - this.cam.x) * 0.15; this.cam.y += (this.camTarget.y - this.cam.y) * 0.15;
       if(Math.abs(this.camTarget.x - this.cam.x) < 1 && Math.abs(this.camTarget.y - this.cam.y) < 1) this.camTarget = null;
@@ -188,7 +190,7 @@ const Engine = {
         const B = BUILDINGS[o.bk], b = st.buildings[o.bk];
         // забор загона: задние стороны, домик, корыто, животные, передние стороны
         add(x + y, () => { Art.fenceLine(c, x, y, x + w, y); Art.fenceLine(c, x, y, x, y + h); });
-        add(x + w - 2.2 * T + y + 2.2 * T, () => Art.shelter(c, x + w - 2.4 * T, y + 0.3 * T, 2 * T, 1.7 * T, B));
+        add(x + w - 2.2 * T + y + 2.2 * T, () => this.squash(o.key, Art.P(x + w - 1.4 * T, y + 2 * T), time, () => Art.shelter(c, x + w - 2.4 * T, y + 0.3 * T, 2 * T, 1.7 * T, B)));
         add(x + 0.4 * T + y + h - 0.8 * T, () => Art.trough(c, x + 0.4 * T, y + h - 0.9 * T));
         (b.animals || []).forEach((a2, i) => {
           const m = this.animalPos(o.bk, i); if(!m) return;
@@ -205,18 +207,18 @@ const Engine = {
       } else if(o.type === 'factory'){
         const B = BUILDINGS[o.bk], q = st.buildings[o.bk].queue || [];
         const run = q.find(j => j.start <= now() && j.end > now()), done = q.filter(j => j.end <= now());
-        add(depth, () => Art.factory(c, x, y, w, h, B, !!run, time));
+        add(depth, () => this.squash(o.key, Art.P(x + w / 2, y + h), time, () => Art.factory(c, x, y, w, h, B, !!run, time)));
         const top = Art.P(x + w / 2, y + h / 2);
         if(done.length) overlays.push(() => Art.bubble(c, top.x, top.y - 150, ITEMS[done[0].item].e, { badge: done.length > 1 ? done.length : 0 }));
         else if(run){ const pct = (now() - run.start) / (run.end - run.start); const bp = Art.P(x + w, y + h); overlays.push(() => { c.fillStyle = '#00000066'; c.beginPath(); c.roundRect(bp.x - 70, bp.y - 4, 70, 10, 5); c.fill(); c.fillStyle = '#7ad04f'; c.beginPath(); c.roundRect(bp.x - 70, bp.y - 4, 70 * pct, 10, 5); c.fill(); }); }
       } else if(o.type === 'storage'){
-        add(depth, () => Art.barn(c, x, y, w, h));
+        add(depth, () => this.squash(o.key, Art.P(x + w / 2, y + h), time, () => Art.barn(c, x, y, w, h)));
       } else if(o.type === 'board'){
-        add(depth, () => Art.board(c, x, y));
+        add(depth, () => this.squash(o.key, Art.P(x + w / 2, y + h), time, () => Art.board(c, x, y)));
         const hasOrder = !this.visit && (S.orders || []).some(o2 => o2 && canPay(o2.items)) && truckState() === 'home';
         if(hasOrder){ const q = Art.P(x + w / 2, y + h / 2); overlays.push(() => Art.bubble(c, q.x, q.y - 120, '✅', { r: 14 })); }
       } else if(o.type === 'decor'){
-        if(o.kind !== 'pond' || true) add(depth, () => Art.decorUp(c, o.kind, x, y, w, h, time));
+        add(depth, () => this.squash(o.key, Art.P(x + w / 2, y + h), time, () => Art.decorUp(c, o.kind, x, y, w, h, time)));
       }
     }
     // грузовик
@@ -228,7 +230,44 @@ const Engine = {
     items.sort((a2, b2) => a2.depth - b2.depth).forEach(it => it.fn());
     // 4) передний забор
     Art.fenceLine(c, 0, H, W, H); Art.fenceLine(c, W, 0, W, H);
-    overlays.forEach(f => f());
+    const bob = Math.sin(time * 3) * 3;
+    c.save(); c.translate(0, bob); overlays.forEach(f => f()); c.restore();
+    this.drawParts(c, this.dt);
+  },
+  /* ---------- «сочность»: пружинка и частицы ---------- */
+  pulse(key){ this.pulses.set(key, performance.now() / 1000); },
+  squash(key, base, time, fn){
+    const t0 = this.pulses.get(key), k = t0 === undefined ? 1 : (time - t0) / 0.35;
+    if(k >= 1 || k < 0){ if(t0 !== undefined && k >= 1) this.pulses.delete(key); return fn(); }
+    const a = Math.sin(k * Math.PI) * (1 - k) * 0.22, c = this.ctx;
+    c.save(); c.translate(base.x, base.y); c.scale(1 + a, 1 - a); c.translate(-base.x, -base.y); fn(); c.restore();
+  },
+  burst(wx, wy, kind, opt = {}){
+    if(this.visit && !opt.always) return;
+    const q = Art.P(wx, wy), n = opt.n || 14;
+    const colors = opt.colors || ({ dust:['#b07a45','#8a5a30','#d4a373'], coin:['#ffd23f','#f4b400','#fff3b0'], spark:['#fff7c2','#ffe066','#ffffff'], confetti:['#e5533d','#ffd23f','#4caf50','#4a90e2','#d6457a'] })[kind] || ['#fff'];
+    for(let i = 0; i < n; i++){
+      const a = kind === 'dust' ? Math.PI + Math.random() * Math.PI : -Math.PI / 2 + (Math.random() - 0.5) * (kind === 'confetti' ? 2.6 : 2);
+      const sp = (kind === 'dust' ? 40 : kind === 'confetti' ? 260 : 150) * (0.5 + Math.random());
+      this.parts.push({ x: q.x + (Math.random() - 0.5) * 20, y: q.y - (opt.lift || 10), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - (kind === 'dust' ? 30 : 0),
+        g: kind === 'dust' ? 60 : kind === 'spark' ? 120 : 520, life: 0, max: (kind === 'confetti' ? 1.6 : 0.8) + Math.random() * 0.4,
+        color: colors[i % colors.length], size: kind === 'coin' ? 6 : kind === 'confetti' ? 7 + Math.random() * 4 : kind === 'dust' ? 4 + Math.random() * 3 : 3 + Math.random() * 3,
+        shape: kind === 'coin' ? 'coin' : kind === 'spark' ? 'star' : 'sq', rot: Math.random() * 6, vr: (Math.random() - 0.5) * 12 });
+    }
+    if(this.parts.length > 400) this.parts.splice(0, this.parts.length - 400);
+  },
+  drawParts(c, dt){
+    if(!this.parts.length) return;
+    this.parts = this.parts.filter(p => (p.life += dt) < p.max);
+    for(const p of this.parts){
+      p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
+      c.globalAlpha = Math.max(0, 1 - (p.life / p.max) ** 2);
+      c.fillStyle = p.color;
+      if(p.shape === 'star') Art.star(c, p.x, p.y, p.size + 1);
+      else if(p.shape === 'coin'){ c.beginPath(); c.ellipse(p.x, p.y, p.size * Math.abs(Math.cos(p.rot)) + 1, p.size, 0, 0, 7); c.fill(); c.strokeStyle = '#b8860b'; c.lineWidth = 1.5; c.stroke(); }
+      else { c.save(); c.translate(p.x, p.y); c.rotate(p.rot); c.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6); c.restore(); }
+    }
+    c.globalAlpha = 1;
   },
   truckPos(){
     const f = this.st.fixed.board;
@@ -343,6 +382,7 @@ const Engine = {
     if(tp && truckState() === 'back'){ const a = Art.P(tp.x, tp.y), b2 = Art.P(w.x, w.y); if(Math.hypot(a.x - b2.x, a.y - 30 - b2.y) < 70){ collectTruck(); return; } }
     if(!obj) return;
     Sound.play('tap');
+    if(obj.type !== 'plot') this.pulse(obj.key);
     switch(obj.type){
       case 'plot': {
         const p = S.plots[obj.idx], ps = plotState(p);
