@@ -46,18 +46,38 @@ const ANIMALS = {
 };
 
 // Постройки. kind:'house' — загон для животных, kind:'factory' — завод с очередью.
+// w,h — размер на карте в клетках; spot — место по умолчанию; wall/roof — цвета.
 const BUILDINGS = {
-  coop:    { n:'Курятник',      e:'🛖', kind:'house',   animal:'chicken', lvl:1,  cost:   0, slots:3 },
-  barn:    { n:'Коровник',      e:'🏚️', kind:'house',   animal:'cow',     lvl:4,  cost: 200, slots:3 },
-  fold:    { n:'Овчарня',       e:'⛺', kind:'house',   animal:'sheep',   lvl:10, cost: 600, slots:3 },
-  feedmill:{ n:'Кормовой завод',e:'🏭', kind:'factory', lvl:1,  cost:   0 },
-  bakery:  { n:'Пекарня',       e:'🥐', kind:'factory', lvl:2,  cost:  60 },
-  dairy:   { n:'Молочный цех',  e:'🧈', kind:'factory', lvl:4,  cost: 180 },
-  sugarmill:{n:'Сахарный завод',e:'🍭', kind:'factory', lvl:5,  cost: 260 },
-  juicer:  { n:'Соковарня',     e:'🧃', kind:'factory', lvl:7,  cost: 420 },
-  sweets:  { n:'Кондитерская',  e:'🎂', kind:'factory', lvl:9,  cost: 650 },
-  loom:    { n:'Ткацкая',       e:'🧵', kind:'factory', lvl:10, cost: 700 },
+  coop:    { n:'Курятник',      e:'🛖', kind:'house',   animal:'chicken', lvl:1,  cost:   0, slots:5, w:6, h:5, spot:[9,10],  wall:'#e9c46a', roof:'#bc4b2c' },
+  barn:    { n:'Коровник',      e:'🏚️', kind:'house',   animal:'cow',     lvl:4,  cost: 200, slots:4, w:6, h:5, spot:[9,16],  wall:'#d9d2c3', roof:'#8c3b2a' },
+  fold:    { n:'Овчарня',       e:'⛺', kind:'house',   animal:'sheep',   lvl:10, cost: 600, slots:4, w:6, h:5, spot:[9,20], wall:'#c9b79c', roof:'#5d6b8a' },
+  feedmill:{ n:'Кормовой завод',e:'🌾', kind:'factory', lvl:1,  cost:   0, w:3, h:3, spot:[4,9],   wall:'#d8b26e', roof:'#6f8f3a' },
+  bakery:  { n:'Пекарня',       e:'🍞', kind:'factory', lvl:2,  cost:  60, w:3, h:3, spot:[4,13],  wall:'#f1d7b0', roof:'#c4552d' },
+  dairy:   { n:'Молочный цех',  e:'🥛', kind:'factory', lvl:4,  cost: 180, w:3, h:3, spot:[1,10], wall:'#e8eef4', roof:'#4a7fb5' },
+  sugarmill:{n:'Сахарный завод',e:'🍬', kind:'factory', lvl:5,  cost: 260, w:3, h:3, spot:[1,14], wall:'#f3e6f0', roof:'#b04a8a' },
+  juicer:  { n:'Соковарня',     e:'🧃', kind:'factory', lvl:7,  cost: 420, w:3, h:3, spot:[4,17], wall:'#fde8c8', roof:'#e07b28' },
+  sweets:  { n:'Кондитерская',  e:'🎂', kind:'factory', lvl:9,  cost: 650, w:3, h:3, spot:[1,18],  wall:'#fbe1ea', roof:'#d6457a' },
+  loom:    { n:'Ткацкая',       e:'🧵', kind:'factory', lvl:10, cost: 700, w:3, h:3, spot:[4,21], wall:'#e6e1f5', roof:'#6b58b5' },
 };
+// Неподвижные постройки хутора: склад и доска заказов с грузовиком.
+const FIXED = {
+  storage: { n:'Амбар', w:3, h:3, spot:[4,1] },
+  board:   { n:'Заказы', w:2, h:2, spot:[1,4] },
+};
+// Декор из магазина.
+const DECOR = {
+  tree:    { n:'Яблоня',   e:'🌳', cost:  25, lvl:1, w:2, h:2 },
+  pine:    { n:'Ель',      e:'🌲', cost:  30, lvl:2, w:2, h:2 },
+  flowers: { n:'Клумба',   e:'🌷', cost:  15, lvl:1, w:1, h:1 },
+  sunflower:{n:'Подсолнух',e:'🌻', cost:  20, lvl:3, w:1, h:1 },
+  bench:   { n:'Скамейка', e:'🪑', cost:  40, lvl:3, w:2, h:1 },
+  pond:    { n:'Пруд',     e:'💧', cost: 120, lvl:5, w:3, h:2 },
+  hay:     { n:'Стог сена',e:'🌾', cost:  35, lvl:2, w:1, h:1 },
+  well:    { n:'Колодец',  e:'⛲', cost:  90, lvl:6, w:2, h:2 },
+};
+const MAP_W = 34, MAP_H = 26;   // размер хутора в клетках
+const PLOT = 2;                  // грядка — 2×2 клетки
+const TRUCK_TIME = 25;           // секунд в пути с заказом
 
 // Рецепты: building, in: {товар: кол-во}, out: кол-во, time
 const RECIPES = {
@@ -79,7 +99,7 @@ const RECIPES = {
 };
 
 const FACTORY_QUEUE = 3;     // сколько заказов можно поставить в очередь на заводе
-const START_PLOTS = 6;
+const START_PLOTS = 8;
 const MAX_PLOTS = 30;
 const START_STORAGE = 60;
 

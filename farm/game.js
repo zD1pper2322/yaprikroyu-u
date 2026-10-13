@@ -1,4 +1,4 @@
-// «Хуторок» — логика игры и экраны.
+// «Хуторок» — логика игры и окна (заводы, склад, заказы, магазин).
 'use strict';
 
 const $ = s => document.querySelector(s);
@@ -9,23 +9,77 @@ const SAVE_KEY = 'hutorok_save_v1';
 let S = null;
 
 function newState(pid, nick){
-  const plots = Array.from({ length: START_PLOTS }, () => ({ crop: null, start: 0 }));
-  return {
-    v: 1, pid, nick,
+  const st = {
+    v: 2, pid, nick,
     coins: 80, xp: 0, lvl: 1,
     cap: START_STORAGE,
-    inv: { wheat: 6, corn: 3 },
-    plots,
-    buildings: {
-      coop: { animals: [{ start: 0 }, { start: 0 }] },
-      feedmill: { queue: [] },
-    },
-    orders: [],
-    orderCooldown: {},
-    helped: {},          // кому помогал: { pid: ts }
-    created: now(),
-    updatedAt: now(),
+    inv: { wheat: 8, corn: 3 },
+    plots: [],
+    buildings: { coop: { animals: [{ start: 0 }, { start: 0 }] }, feedmill: { queue: [] } },
+    decor: [],
+    orders: [], orderCooldown: {}, helped: {},
+    truck: null, tut: 0, sound: true,
+    created: now(), updatedAt: now(),
   };
+  for(let i = 0; i < START_PLOTS; i++) st.plots.push({ crop: null, start: 0 });
+  return migrate(st);
+}
+
+// Расстановка по карте: старые сохранения (без координат) раскладываются по местам по умолчанию.
+function migrate(st){
+  st.decor = st.decor || []; st.orders = st.orders || []; st.orderCooldown = st.orderCooldown || {}; st.helped = st.helped || {};
+  st.buildings = st.buildings || {};
+  if(st.sound === undefined) st.sound = true;
+  if(st.tut === undefined) st.tut = st.v >= 2 ? 0 : 99;   // старым игрокам обучение не показываем
+  st.fixed = st.fixed || { storage: { gx: FIXED.storage.spot[0], gy: FIXED.storage.spot[1] }, board: { gx: FIXED.board.spot[0], gy: FIXED.board.spot[1] } };
+  const occ = makeOcc(st);
+  for(const [k, b] of Object.entries(st.buildings)){
+    if(!BUILDINGS[k]) { delete st.buildings[k]; continue; }
+    if(b.gx === undefined){ const p = findSpot(occ, BUILDINGS[k].w, BUILDINGS[k].h, BUILDINGS[k].spot); b.gx = p[0]; b.gy = p[1]; occ.mark(b.gx, b.gy, BUILDINGS[k].w, BUILDINGS[k].h); }
+  }
+  st.plots.forEach((p, i) => {
+    p.id = p.id || 'p' + i + Math.random().toString(36).slice(2, 5);
+    if(p.gx === undefined){
+      const pref = [8 + (i % 4) * 2, 1 + Math.floor(i / 4) * 2];
+      const s = findSpot(occ, PLOT, PLOT, pref); p.gx = s[0]; p.gy = s[1]; occ.mark(p.gx, p.gy, PLOT, PLOT);
+    }
+  });
+  st.v = 2;
+  return st;
+}
+
+/* ---------- занятость клеток ---------- */
+function footprints(st, skip){
+  const list = [];
+  st.plots.forEach((p, i) => { if(skip !== 'plot:' + i && p.gx !== undefined) list.push([p.gx, p.gy, PLOT, PLOT]); });
+  for(const [k, b] of Object.entries(st.buildings)) if(skip !== 'building:' + k && b.gx !== undefined) list.push([b.gx, b.gy, BUILDINGS[k].w, BUILDINGS[k].h]);
+  for(const [k, f] of Object.entries(st.fixed || {})) list.push([f.gx, f.gy, FIXED[k].w, FIXED[k].h]);
+  (st.decor || []).forEach((d, i) => { if(skip !== 'decor:' + i) list.push([d.gx, d.gy, DECOR[d.kind].w, DECOR[d.kind].h]); });
+  list.push([0, 6, 5, 2]);   // дорога к доске заказов
+  return list;
+}
+function makeOcc(st, skip){
+  const grid = new Uint8Array(MAP_W * MAP_H);
+  const occ = {
+    mark(x, y, w, h){ for(let j = y; j < y + h; j++) for(let i = x; i < x + w; i++) if(i >= 0 && j >= 0 && i < MAP_W && j < MAP_H) grid[j * MAP_W + i] = 1; },
+    free(x, y, w, h){
+      if(x < 1 || y < 1 || x + w > MAP_W - 1 || y + h > MAP_H - 1) return false;
+      for(let j = y; j < y + h; j++) for(let i = x; i < x + w; i++) if(grid[j * MAP_W + i]) return false;
+      return true;
+    },
+  };
+  footprints(st, skip).forEach(f => occ.mark(...f));
+  return occ;
+}
+function findSpot(occ, w, h, pref){
+  const [px, py] = pref || [Math.floor(MAP_W / 2), Math.floor(MAP_H / 2)];
+  for(let r = 0; r < Math.max(MAP_W, MAP_H); r++){
+    for(let dy = -r; dy <= r; dy++) for(let dx = -r; dx <= r; dx++){
+      if(Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+      if(occ.free(px + dx, py + dy, w, h)) return [px + dx, py + dy];
+    }
+  }
+  return null;
 }
 
 function loadLocal(){
@@ -38,10 +92,11 @@ function save(){
   try{ localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e){}
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => window.Net && Net.pushState(), 1500);
+  renderHud();
 }
 
 /* ===================== ПОДСЧЁТЫ ===================== */
-const unlocked = key => (ITEMS[key]?.lvl || BUILDINGS[key]?.lvl || ANIMALS[key]?.lvl || 1) <= S.lvl;
+const unlocked = key => (ITEMS[key]?.lvl || BUILDINGS[key]?.lvl || ANIMALS[key]?.lvl || DECOR[key]?.lvl || 1) <= S.lvl;
 const have = k => S.inv[k] || 0;
 function stored(){ return Object.values(S.inv).reduce((a, b) => a + b, 0); }
 function spaceLeft(){ return S.cap - stored(); }
@@ -56,133 +111,101 @@ function fmtTime(sec){
   const h = Math.floor(m / 60), mm = m % 60;
   return mm ? `${h} ч ${mm} мин` : `${h} ч`;
 }
-const label = k => `${ITEMS[k].e} ${ITEMS[k].n}`;
 const listStr = map => Object.entries(map).map(([k, n]) => `${ITEMS[k].e}×${n}`).join(' ');
 
 function gainXp(n){
   S.xp += n;
-  let up = false;
   while(S.xp >= xpForLevel(S.lvl)){
     S.xp -= xpForLevel(S.lvl);
     S.lvl++;
-    up = true;
     const opened = [
       ...Object.keys(ITEMS).filter(k => ITEMS[k].lvl === S.lvl && ITEMS[k].kind !== 'feed').map(k => ITEMS[k].e + ' ' + ITEMS[k].n),
       ...Object.keys(BUILDINGS).filter(k => BUILDINGS[k].lvl === S.lvl).map(k => BUILDINGS[k].e + ' ' + BUILDINGS[k].n),
+      ...Object.keys(DECOR).filter(k => DECOR[k].lvl === S.lvl).map(k => DECOR[k].e + ' ' + DECOR[k].n),
     ];
     S.coins += 20 * S.lvl;
-    showSheet(`🎉 Уровень ${S.lvl}!`, `<p class="big">Награда: 🪙 ${20 * S.lvl}</p>${opened.length ? `<p>Открыто:</p><div class="chips">${opened.map(o => `<span class="chip">${o}</span>`).join('')}</div>` : ''}<button class="btn primary" data-close>Отлично</button>`);
+    Sound.play('level');
+    showSheet(`🎉 Уровень ${S.lvl}!`, `<p class="big">Награда: 🪙 ${20 * S.lvl}</p>${opened.length ? `<p>Открыто:</p><div class="chips">${opened.map(o => `<span class="chip">${o}</span>`).join('')}</div>` : ''}<p class="hint">Новые постройки — в 🛒 Магазине.</p><button class="btn primary" data-close>Отлично</button>`);
+    fillOrders();
   }
-  if(up) fillOrders();
 }
 
 /* ===================== ПОЛЕ ===================== */
 function plotState(p){
   if(!p.crop) return { s:'empty' };
-  const left = p.start + ITEMS[p.crop].time * 1000 - now();
-  return left <= 0 ? { s:'ready' } : { s:'growing', left: left / 1000, pct: 1 - left / (ITEMS[p.crop].time * 1000) };
+  const total = ITEMS[p.crop].time * 1000;
+  const left = p.start + total - now();
+  return left <= 0 ? { s:'ready', pct: 1 } : { s:'growing', left: left / 1000, pct: 1 - left / total };
 }
-function plant(i, crop, opts = {}){
+function plant(i, crop){
   const p = S.plots[i];
-  if(p.crop) return false;
+  if(!p || p.crop) return false;
   if(have(crop) < 1){
     const cost = ITEMS[crop].price * 2;
-    if(!opts.buy) return false;
-    if(S.coins < cost){ toast('Не хватает монет'); return false; }
+    if(S.coins < cost){ toast(`Нет: ${ITEMS[crop].n.toLowerCase()}. Купить семена — 🪙 ${cost}`); return false; }
     S.coins -= cost;
   } else add(crop, -1);
-  p.crop = crop; p.start = now();
+  p.crop = crop; p.start = now(); delete p.helpedBy;
+  Sound.play('plant');
+  Tut.on('plant');
   return true;
 }
 function harvest(i){
   const p = S.plots[i];
-  if(plotState(p).s !== 'ready') return false;
-  if(spaceLeft() < 2){ toast('📦 Склад полон — продайте что-нибудь или расширьте склад'); return false; }
-  add(p.crop, 2);
-  gainXp(ITEMS[p.crop].xp);
-  floatText(`.plot[data-i="${i}"]`, `+2 ${ITEMS[p.crop].e}`);
-  p.crop = null; p.start = 0;
+  if(!p || plotState(p).s !== 'ready') return false;
+  if(spaceLeft() < 2){ toast('📦 Амбар полон — продайте что-нибудь или расширьте амбар'); return false; }
+  const crop = p.crop;
+  add(crop, 2);
+  gainXp(ITEMS[crop].xp);
+  p.crop = null; p.start = 0; delete p.helpedBy;
+  Engine.flyFromWorld(ITEMS[crop].e + '×2', p.gx * TILE + TILE, p.gy * TILE + TILE / 2, 'store');
+  Sound.play('harvest');
+  Tut.on('harvest');
   return true;
-}
-function harvestAll(){
-  let n = 0;
-  S.plots.forEach((p, i) => { if(harvest(i)) n++; });
-  if(n){ save(); render(); } else toast('Пока нечего собирать');
-}
-
-function openPlantSheet(i){
-  const crops = CROPS.filter(unlocked);
-  const html = `<div class="pick">${crops.map(k => {
-    const it = ITEMS[k];
-    const n = have(k);
-    return `<button class="pick-item" data-crop="${k}">
-      <span class="pe">${it.e}</span>
-      <span class="pn">${it.n}</span>
-      <span class="pm">${fmtTime(it.time)} · ${n ? `есть ${n}` : `🪙 ${it.price * 2}`}</span>
-    </button>`;
-  }).join('')}</div>
-  <label class="check"><input type="checkbox" id="plantAll" checked> Засеять все пустые грядки</label>`;
-  showSheet('Что посадить?', html, sheet => {
-    sheet.querySelectorAll('[data-crop]').forEach(b => b.onclick = () => {
-      const crop = b.dataset.crop;
-      const all = sheet.querySelector('#plantAll').checked;
-      const targets = all ? S.plots.map((p, j) => j).filter(j => !S.plots[j].crop) : [i];
-      if(!targets.includes(i)) targets.unshift(i);
-      let planted = 0;
-      for(const j of targets){
-        const buy = have(crop) < 1 && planted === 0;  // одно семя можно докупить, если нет совсем
-        if(!plant(j, crop, { buy })) break;
-        planted++;
-      }
-      if(planted){ save(); closeSheet(); render(); }
-      else toast(`Нет ${ITEMS[crop].n.toLowerCase()} и не хватает монет на семена`);
-    });
-  });
 }
 function buyPlot(){
   if(S.plots.length >= MAX_PLOTS) return toast('Больше грядок не поместится');
   const cost = plotCost(S.plots.length);
   if(S.coins < cost) return toast(`Нужно 🪙 ${cost}`);
+  const spot = findSpot(makeOcc(S), PLOT, PLOT, [11, 5]);
+  if(!spot) return toast('Нет места на хуторе');
   S.coins -= cost;
-  S.plots.push({ crop: null, start: 0 });
-  save(); render();
+  S.plots.push({ id: 'p' + now().toString(36), crop: null, start: 0, gx: spot[0], gy: spot[1] });
+  Sound.play('coin');
+  save(); Engine.focus(spot[0] + 1, spot[1] + 1);
+  toast('Грядка готова. Зажмите её, чтобы переставить');
 }
 
 /* ===================== ЖИВОТНЫЕ ===================== */
-function houseOf(animal){ return ANIMALS[animal].house; }
 function animalState(a, kind){
   if(!a.start) return { s:'hungry' };
-  const left = a.start + ANIMALS[kind].time * 1000 - now();
-  return left <= 0 ? { s:'ready' } : { s:'eating', left: left / 1000, pct: 1 - left / (ANIMALS[kind].time * 1000) };
+  const total = ANIMALS[kind].time * 1000;
+  const left = a.start + total - now();
+  return left <= 0 ? { s:'ready' } : { s:'eating', left: left / 1000, pct: 1 - left / total };
 }
-function tapAnimal(hk, idx){
-  const B = BUILDINGS[hk], kind = B.animal, A = ANIMALS[kind];
-  const a = S.buildings[hk].animals[idx];
-  const st = animalState(a, kind);
-  if(st.s === 'ready'){
-    if(spaceLeft() < 1) return toast('📦 Склад полон');
-    add(A.makes, 1); gainXp(ITEMS[A.makes].xp);
-    a.start = 0;
-    floatText(`[data-animal="${hk}-${idx}"]`, `+1 ${ITEMS[A.makes].e}`);
-    save(); render(); return;
-  }
-  if(st.s === 'hungry'){
-    if(have(A.feed) < 1) return toast(`Нужен ${ITEMS[A.feed].n.toLowerCase()} — сделайте на кормовом заводе`);
-    add(A.feed, -1); a.start = now();
-    save(); render(); return;
-  }
-  toast(`${A.e} ${A.n}: ещё ${fmtTime(st.left)}`);
-}
-function feedAll(hk){
+function feedAnimal(hk, idx){
   const B = BUILDINGS[hk], A = ANIMALS[B.animal];
-  let fed = 0, got = 0;
-  S.buildings[hk].animals.forEach(a => {
-    const st = animalState(a, B.animal);
-    if(st.s === 'ready' && spaceLeft() > 0){ add(A.makes, 1); gainXp(ITEMS[A.makes].xp); a.start = 0; got++; }
-    if(!a.start && have(A.feed) > 0){ add(A.feed, -1); a.start = now(); fed++; }
+  const a = S.buildings[hk]?.animals[idx];
+  if(!a || animalState(a, B.animal).s !== 'hungry') return false;
+  if(have(A.feed) < 1){ toast(`Нет корма: ${ITEMS[A.feed].n.toLowerCase()} — сделайте на кормовом заводе`); return false; }
+  add(A.feed, -1); a.start = now();
+  Sound.play(B.animal);
+  Tut.on('feed');
+  return true;
+}
+function collectAnimals(hk){
+  const B = BUILDINGS[hk], A = ANIMALS[B.animal];
+  let got = 0;
+  S.buildings[hk].animals.forEach((a, i) => {
+    if(animalState(a, B.animal).s !== 'ready') return;
+    if(spaceLeft() < 1) return;
+    add(A.makes, 1); gainXp(ITEMS[A.makes].xp); a.start = 0; got++;
+    const pos = Engine.animalPos(hk, i);
+    if(pos) Engine.flyFromWorld(ITEMS[A.makes].e, pos.x, pos.y - 20, 'store');
   });
-  if(!fed && !got) toast(have(A.feed) ? 'Все уже сыты' : `Нет: ${ITEMS[A.feed].n.toLowerCase()}`);
-  save(); render();
+  if(got){ Sound.play('pop'); save(); }
+  else if(spaceLeft() < 1) toast('📦 Амбар полон');
+  return got;
 }
 function buyAnimal(hk){
   const B = BUILDINGS[hk], A = ANIMALS[B.animal];
@@ -191,7 +214,8 @@ function buyAnimal(hk){
   const cost = A.cost * (list.length + 1);
   if(S.coins < cost) return toast(`Нужно 🪙 ${cost}`);
   S.coins -= cost; list.push({ start: 0 });
-  save(); render();
+  Sound.play(B.animal);
+  save();
 }
 
 /* ===================== ПОСТРОЙКИ И ЗАВОДЫ ===================== */
@@ -200,10 +224,14 @@ function build(k){
   if(S.buildings[k]) return;
   if(!unlocked(k)) return toast(`Откроется на уровне ${B.lvl}`);
   if(S.coins < B.cost) return toast(`Нужно 🪙 ${B.cost}`);
+  const spot = findSpot(makeOcc(S), B.w, B.h, B.spot);
+  if(!spot) return toast('Нет места на хуторе — уберите декор');
   S.coins -= B.cost;
-  S.buildings[k] = B.kind === 'house' ? { animals: [{ start: 0 }] } : { queue: [] };
+  S.buildings[k] = B.kind === 'house' ? { animals: [{ start: 0 }], gx: spot[0], gy: spot[1] } : { queue: [], gx: spot[0], gy: spot[1] };
   gainXp(5 + B.lvl * 2);
-  save(); render();
+  Sound.play('build');
+  save(); closeSheet(); Engine.focus(spot[0] + B.w / 2, spot[1] + B.h / 2);
+  toast(`${B.e} ${B.n} построен! Зажмите, чтобы переставить`);
 }
 function queueEnd(q){ return q.length ? q[q.length - 1].end : 0; }
 function produce(bk, item){
@@ -214,30 +242,41 @@ function produce(bk, item){
   pay(R.in);
   const start = Math.max(now(), queueEnd(q));
   q.push({ item, start, end: start + R.time * 1000 });
-  save(); render();
+  Sound.play('pop');
+  Tut.on('produce');
+  save(); openFactory(bk);
 }
+function factoryDone(bk){ return (S.buildings[bk]?.queue || []).filter(j => j.end <= now()).length; }
 function collectFactory(bk){
   const q = S.buildings[bk].queue;
+  const B = S.buildings[bk];
   let got = 0;
   while(q.length && q[0].end <= now()){
     const it = q[0].item, n = RECIPES[it].out;
-    if(spaceLeft() < n){ toast('📦 Склад полон'); break; }
+    if(spaceLeft() < n){ toast('📦 Амбар полон'); break; }
     add(it, n); gainXp(ITEMS[it].xp * n); q.shift(); got++;
+    Engine.flyFromWorld(ITEMS[it].e + (n > 1 ? '×' + n : ''), (B.gx + 1.5) * TILE, B.gy * TILE, 'store');
   }
-  if(got){ save(); render(); }
+  if(got){ Sound.play('pop'); save(); }
+  return got;
 }
 
-/* ===================== ЗАКАЗЫ ===================== */
+/* ===================== ЗАКАЗЫ И ГРУЗОВИК ===================== */
 const ORDER_SLOTS = () => Math.min(6, 3 + Math.floor(S.lvl / 4));
 function orderable(){
-  return Object.keys(ITEMS).filter(k => ITEMS[k].kind !== 'feed' && unlocked(k) && (ITEMS[k].kind !== 'good' || S.buildings[RECIPES[k].b]) && (ITEMS[k].kind !== 'animal' || S.buildings[houseOf(Object.keys(ANIMALS).find(a => ANIMALS[a].makes === k))]));
+  return Object.keys(ITEMS).filter(k => {
+    const it = ITEMS[k];
+    if(it.kind === 'feed' || !unlocked(k)) return false;
+    if(it.kind === 'good') return !!S.buildings[RECIPES[k].b];
+    if(it.kind === 'animal') return !!S.buildings[ANIMALS[Object.keys(ANIMALS).find(a => ANIMALS[a].makes === k)].house];
+    return true;
+  });
 }
 function makeOrder(){
-  const pool = orderable();
+  const pool = orderable().sort(() => Math.random() - 0.5);
   const kinds = Math.min(pool.length, 1 + Math.floor(Math.random() * Math.min(3, 1 + S.lvl / 3)));
   const items = {};
-  const shuffled = pool.sort(() => Math.random() - 0.5).slice(0, kinds);
-  shuffled.forEach(k => {
+  pool.slice(0, kinds).forEach(k => {
     const kind = ITEMS[k].kind;
     const max = kind === 'crop' ? 4 + Math.floor(S.lvl / 2) : kind === 'animal' ? 3 : 2;
     items[k] = 1 + Math.floor(Math.random() * max);
@@ -252,60 +291,73 @@ function fillOrders(){
   while(S.orders.length < slots) S.orders.push(null);
   S.orders = S.orders.slice(0, slots).map((o, i) => o || ((S.orderCooldown[i] || 0) <= now() ? makeOrder() : null));
 }
+function truckState(){
+  if(!S.truck) return 'home';
+  return now() < S.truck.back ? 'away' : 'back';
+}
 function completeOrder(i){
   const o = S.orders[i];
   if(!o) return;
+  if(truckState() !== 'home') return toast(truckState() === 'away' ? '🚚 Грузовик ещё в пути' : '🚚 Сначала заберите монеты у грузовика');
   if(!canPay(o.items)) return toast('Не хватает товаров');
-  pay(o.items); S.coins += o.coins; gainXp(o.xp);
+  pay(o.items);
+  S.truck = { coins: o.coins, xp: o.xp, back: now() + TRUCK_TIME * 1000 };
   S.orders[i] = null; S.orderCooldown[i] = now() + 20 * 1000;
-  toast(`✅ +🪙 ${o.coins}  +⭐ ${o.xp}`);
-  save(); render();
+  Sound.play('truck');
+  Tut.on('order');
+  save(); closeSheet();
+  toast(`🚚 Грузовик повёз заказ. Через ${TRUCK_TIME} секунд привезёт 🪙 ${o.coins}`);
 }
-function skipOrder(i){
-  S.orders[i] = null; S.orderCooldown[i] = now() + 90 * 1000;
-  save(); render();
+function collectTruck(){
+  if(truckState() !== 'back') return false;
+  S.coins += S.truck.coins; gainXp(S.truck.xp);
+  const f = S.fixed.board;
+  Engine.flyFromWorld(`🪙${S.truck.coins}`, (f.gx + 1) * TILE, (f.gy + 2) * TILE, 'coins');
+  S.truck = null;
+  Sound.play('coin');
+  save();
+  return true;
 }
+function skipOrder(i){ S.orders[i] = null; S.orderCooldown[i] = now() + 90 * 1000; save(); openOrders(); }
 
-/* ===================== СКЛАД ===================== */
-function sellOne(k, n = 1){
-  if(have(k) < n) return;
-  add(k, -n); S.coins += ITEMS[k].price * n;
-  save(); render();
-}
+/* ===================== СКЛАД И МАГАЗИН ===================== */
+function sellOne(k){ if(have(k) < 1) return; add(k, -1); S.coins += ITEMS[k].price; Sound.play('coin'); save(); }
 function upgradeStorage(){
   const cost = storageUpgradeCost(S.cap);
   if(S.coins < cost) return toast(`Нужно 🪙 ${cost}`);
-  S.coins -= cost; S.cap += 25;
-  toast(`📦 Склад: ${S.cap} мест`);
-  save(); render();
+  S.coins -= cost; S.cap += 25; Sound.play('build');
+  toast(`📦 Амбар: ${S.cap} мест`); save();
+}
+function buyDecor(kind){
+  const D = DECOR[kind];
+  if(!unlocked(kind)) return toast(`Откроется на уровне ${D.lvl}`);
+  if(S.coins < D.cost) return toast(`Нужно 🪙 ${D.cost}`);
+  const spot = findSpot(makeOcc(S), D.w, D.h, [16, 8]);
+  if(!spot) return toast('Нет места на хуторе');
+  S.coins -= D.cost; S.decor.push({ kind, gx: spot[0], gy: spot[1] });
+  Sound.play('build'); save(); closeSheet(); Engine.focus(spot[0] + D.w / 2, spot[1] + D.h / 2);
+  toast(`${D.e} ${D.n} на хуторе. Зажмите, чтобы переставить`);
 }
 
-/* ===================== ИНТЕРФЕЙС ===================== */
-let tab = 'field';
-let sheetOnClose = null;
-
+/* ===================== ОКНА ===================== */
+let sheetOnClose = null, sheetKind = null;
 function toast(text){
   const t = $('#toast'); t.textContent = text; t.classList.add('show');
-  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2600);
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2800);
 }
-function floatText(sel, text){
-  const el = document.querySelector(sel); if(!el) return;
-  const r = el.getBoundingClientRect();
-  const f = document.createElement('div'); f.className = 'float'; f.textContent = text;
-  f.style.left = (r.left + r.width / 2) + 'px'; f.style.top = (r.top + 10) + 'px';
-  document.body.appendChild(f); setTimeout(() => f.remove(), 1100);
-}
-function showSheet(title, html, bind, onClose){
+function showSheet(title, html, bind, onClose, kind){
   $('#sheetTitle').textContent = title;
   $('#sheetBody').innerHTML = html;
   $('#sheet').classList.add('show');
-  sheetOnClose = onClose || null;
+  sheetOnClose = onClose || null; sheetKind = kind || null;
   $('#sheetBody').querySelectorAll('[data-close]').forEach(b => b.onclick = closeSheet);
   if(bind) bind($('#sheetBody'));
 }
-function closeSheet(){ $('#sheet').classList.remove('show'); const f = sheetOnClose; sheetOnClose = null; if(f) f(); }
+function closeSheet(){ $('#sheet').classList.remove('show'); sheetKind = null; const f = sheetOnClose; sheetOnClose = null; if(f) f(); }
+function sheetOpen(kind){ return $('#sheet').classList.contains('show') && (!kind || sheetKind === kind); }
 
 function renderHud(){
+  if(!S) return;
   const need = xpForLevel(S.lvl);
   $('#hudLvl').textContent = S.lvl;
   $('#hudXp').style.width = Math.min(100, S.xp / need * 100) + '%';
@@ -313,102 +365,52 @@ function renderHud(){
   $('#hudCoins').textContent = S.coins;
   $('#hudStore').textContent = `${stored()}/${S.cap}`;
   $('#hudNick').textContent = S.nick;
+  const canOrder = (S.orders || []).some(o => o && canPay(o.items)) || truckState() === 'back';
+  $('#ordersDot').hidden = !canOrder;
 }
 
-function viewField(){
-  const ready = S.plots.some(p => plotState(p).s === 'ready');
-  const plots = S.plots.map((p, i) => {
-    const st = plotState(p);
-    const it = p.crop ? ITEMS[p.crop] : null;
-    const helpBadge = p.helpedBy ? `<span class="help-badge" title="Помог ${p.helpedBy}">💧</span>` : '';
-    if(st.s === 'empty') return `<button class="plot empty" data-i="${i}"><span class="soil">＋</span></button>`;
-    if(st.s === 'ready') return `<button class="plot ready" data-i="${i}">${helpBadge}<span class="crop big">${it.e}</span><span class="t">Собрать</span></button>`;
-    return `<button class="plot growing" data-i="${i}">${helpBadge}<span class="crop" style="transform:scale(${0.65 + st.pct * 0.35})">${it.e}</span><span class="t">${fmtTime(st.left)}</span><span class="bar"><i style="width:${st.pct * 100}%"></i></span></button>`;
+function openFactory(bk){
+  const B = BUILDINGS[bk], bs = S.buildings[bk];
+  const q = bs.queue;
+  const recipes = Object.keys(RECIPES).filter(r => RECIPES[r].b === bk);
+  const doneN = factoryDone(bk);
+  const queue = q.map(j => {
+    const left = (j.end - now()) / 1000;
+    const running = j.start <= now() && left > 0;
+    const pct = running ? 1 - left / RECIPES[j.item].time : (left <= 0 ? 1 : 0);
+    return `<div class="job ${left <= 0 ? 'done' : running ? 'run' : 'wait'}"><span>${ITEMS[j.item].e}${RECIPES[j.item].out > 1 ? '×' + RECIPES[j.item].out : ''}</span>
+      <small>${left <= 0 ? 'готово' : running ? fmtTime(left) : 'в очереди'}</small><span class="bar"><i style="width:${pct * 100}%"></i></span></div>`;
+  }).join('') + Array.from({ length: FACTORY_QUEUE - q.length }, () => '<div class="job empty">свободно</div>').join('');
+  const menu = recipes.map(r => {
+    const R = RECIPES[r], ok = unlocked(r), enough = canPay(R.in);
+    return `<button class="recipe ${ok ? '' : 'lock'} ${enough ? 'ok' : ''}" ${ok ? `data-make="${r}"` : 'disabled'}>
+      <span class="re">${ITEMS[r].e}${R.out > 1 ? '<sub>×' + R.out + '</sub>' : ''}</span>
+      <span class="rn">${ITEMS[r].n}</span>
+      <span class="ri">${ok ? listStr(R.in) + ' · ' + fmtTime(R.time) : '🔒 ур. ' + ITEMS[r].lvl}</span></button>`;
   }).join('');
-  const more = S.plots.length < MAX_PLOTS ? `<button class="plot buy" id="buyPlot"><span>＋ Грядка</span><span class="t">🪙 ${plotCost(S.plots.length)}</span></button>` : '';
-  return `<div class="toolbar"><h2>Поле</h2>${ready ? '<button class="btn primary sm" id="harvestAll">🧺 Собрать всё</button>' : ''}</div>
-    <div class="field">${plots}${more}</div>
-    <p class="hint">Посадка тратит 1 штуку, урожай — 2. Нет семян? Можно купить одно на грядку.</p>`;
+  showSheet(`${B.e} ${B.n}`, `<div class="queue">${queue}</div>
+    ${doneN ? `<button class="btn primary" id="fCollect">Забрать готовое (${doneN})</button>` : ''}
+    <div class="recipes">${menu}</div>`, sh => {
+    sh.querySelectorAll('[data-make]').forEach(b => b.onclick = () => produce(bk, b.dataset.make));
+    sh.querySelector('#fCollect')?.addEventListener('click', () => { collectFactory(bk); openFactory(bk); });
+  }, null, 'factory:' + bk);
 }
-function bindField(root){
-  root.querySelectorAll('.plot[data-i]').forEach(b => b.onclick = () => {
-    const i = +b.dataset.i, st = plotState(S.plots[i]);
-    if(st.s === 'empty') openPlantSheet(i);
-    else if(st.s === 'ready'){ if(harvest(i)){ save(); render(); } }
-    else toast(`${ITEMS[S.plots[i].crop].e} ещё ${fmtTime(st.left)}`);
+function openPen(hk){
+  const B = BUILDINGS[hk], A = ANIMALS[B.animal], bs = S.buildings[hk];
+  const canMore = bs.animals.length < B.slots;
+  const hungry = bs.animals.filter(a => animalState(a, B.animal).s === 'hungry').length;
+  showSheet(`${B.e} ${B.n}`, `<p>${A.e} ${A.n}: ${bs.animals.length} из ${B.slots}. Голодных: ${hungry}.</p>
+    <p class="hint">Корм: ${ITEMS[A.feed].e} ${ITEMS[A.feed].n} — есть ${have(A.feed)}. Делается на кормовом заводе.</p>
+    <p class="hint">На ферме: нажмите на загон и проведите кормом по животным. Когда над ними появится ${ITEMS[A.makes].e} — нажмите, чтобы собрать.</p>
+    ${canMore ? `<button class="btn primary" id="bA">Купить ${A.e} за 🪙 ${A.cost * (bs.animals.length + 1)}</button>` : '<p class="hint">Загон заполнен.</p>'}`, sh => {
+    sh.querySelector('#bA')?.addEventListener('click', () => { buyAnimal(hk); openPen(hk); });
   });
-  root.querySelector('#harvestAll')?.addEventListener('click', harvestAll);
-  root.querySelector('#buyPlot')?.addEventListener('click', buyPlot);
 }
-
-function viewAnimals(){
-  return `<div class="toolbar"><h2>Животные</h2></div>` + Object.keys(BUILDINGS).filter(k => BUILDINGS[k].kind === 'house').map(hk => {
-    const B = BUILDINGS[hk], A = ANIMALS[B.animal];
-    const bs = S.buildings[hk];
-    if(!bs){
-      return `<div class="card locked"><div class="card-h"><span class="ce">${B.e}</span><div><b>${B.n}</b><small>${A.e} ${A.n} · даёт ${label(A.makes)}</small></div></div>
-        ${unlocked(hk) ? `<button class="btn primary" data-build="${hk}">Построить за 🪙 ${B.cost}</button>` : `<p class="hint">🔒 Откроется на уровне ${B.lvl}</p>`}</div>`;
-    }
-    const animals = bs.animals.map((a, i) => {
-      const st = animalState(a, B.animal);
-      const cls = st.s;
-      const inner = st.s === 'ready' ? `<span class="ae">${A.e}</span><span class="prod">${ITEMS[A.makes].e}</span><span class="t">Забрать</span>`
-        : st.s === 'hungry' ? `<span class="ae">${A.e}</span><span class="t">Покормить ${ITEMS[A.feed].e}</span>`
-        : `<span class="ae">${A.e}</span><span class="t">${fmtTime(st.left)}</span><span class="bar"><i style="width:${st.pct * 100}%"></i></span>`;
-      return `<button class="animal ${cls}" data-animal="${hk}-${i}">${inner}</button>`;
-    }).join('');
-    const canMore = bs.animals.length < B.slots;
-    return `<div class="card"><div class="card-h"><span class="ce">${B.e}</span><div><b>${B.n}</b><small>Корм: ${label(A.feed)} — есть ${have(A.feed)}</small></div>
-        <button class="btn sm" data-feedall="${hk}">Покормить всех</button></div>
-      <div class="animals">${animals}${canMore ? `<button class="animal buy" data-buyanimal="${hk}">＋ ${A.e}<span class="t">🪙 ${A.cost * (bs.animals.length + 1)}</span></button>` : ''}</div></div>`;
-  }).join('');
-}
-function bindAnimals(root){
-  root.querySelectorAll('[data-animal]').forEach(b => b.onclick = () => { const [hk, i] = b.dataset.animal.split('-'); tapAnimal(hk, +i); });
-  root.querySelectorAll('[data-feedall]').forEach(b => b.onclick = () => feedAll(b.dataset.feedall));
-  root.querySelectorAll('[data-buyanimal]').forEach(b => b.onclick = () => buyAnimal(b.dataset.buyanimal));
-  root.querySelectorAll('[data-build]').forEach(b => b.onclick = () => build(b.dataset.build));
-}
-
-function viewFactories(){
-  return `<div class="toolbar"><h2>Производство</h2></div>` + Object.keys(BUILDINGS).filter(k => BUILDINGS[k].kind === 'factory').map(bk => {
-    const B = BUILDINGS[bk];
-    const bs = S.buildings[bk];
-    const recipes = Object.keys(RECIPES).filter(r => RECIPES[r].b === bk);
-    if(!bs){
-      return `<div class="card locked"><div class="card-h"><span class="ce">${B.e}</span><div><b>${B.n}</b><small>${recipes.map(r => ITEMS[r].e).join(' ')}</small></div></div>
-        ${unlocked(bk) ? `<button class="btn primary" data-build="${bk}">Построить за 🪙 ${B.cost}</button>` : `<p class="hint">🔒 Откроется на уровне ${B.lvl}</p>`}</div>`;
-    }
-    const q = bs.queue;
-    const doneN = q.filter(j => j.end <= now()).length;
-    const queue = q.map((j, idx) => {
-      const left = (j.end - now()) / 1000;
-      const running = j.start <= now() && left > 0;
-      const pct = running ? 1 - left / RECIPES[j.item].time : (left <= 0 ? 1 : 0);
-      return `<div class="job ${left <= 0 ? 'done' : running ? 'run' : 'wait'}"><span>${ITEMS[j.item].e}${RECIPES[j.item].out > 1 ? '×' + RECIPES[j.item].out : ''}</span>
-        <small>${left <= 0 ? 'готово' : running ? fmtTime(left) : 'в очереди'}</small><span class="bar"><i style="width:${pct * 100}%"></i></span></div>`;
-    }).join('') + Array.from({ length: FACTORY_QUEUE - q.length }, () => '<div class="job empty">свободно</div>').join('');
-    const menu = recipes.map(r => {
-      const R = RECIPES[r], ok = unlocked(r);
-      const enough = canPay(R.in);
-      return `<button class="recipe ${ok ? '' : 'lock'} ${enough ? 'ok' : ''}" ${ok ? `data-make="${bk}:${r}"` : 'disabled'}>
-        <span class="re">${ITEMS[r].e}${R.out > 1 ? '<sub>×' + R.out + '</sub>' : ''}</span>
-        <span class="rn">${ITEMS[r].n}</span>
-        <span class="ri">${ok ? listStr(R.in) + ' · ' + fmtTime(R.time) : '🔒 ур. ' + ITEMS[r].lvl}</span></button>`;
-    }).join('');
-    return `<div class="card"><div class="card-h"><span class="ce">${B.e}</span><div><b>${B.n}</b><small>Очередь ${q.length}/${FACTORY_QUEUE}</small></div>
-      ${doneN ? `<button class="btn primary sm" data-collect="${bk}">Забрать ${doneN}</button>` : ''}</div>
-      <div class="queue">${queue}</div><div class="recipes">${menu}</div></div>`;
-  }).join('');
-}
-function bindFactories(root){
-  root.querySelectorAll('[data-build]').forEach(b => b.onclick = () => build(b.dataset.build));
-  root.querySelectorAll('[data-make]').forEach(b => b.onclick = () => { const [bk, r] = b.dataset.make.split(':'); produce(bk, r); });
-  root.querySelectorAll('[data-collect]').forEach(b => b.onclick = () => collectFactory(b.dataset.collect));
-}
-
-function viewOrders(){
+function openOrders(){
   fillOrders();
+  const ts = truckState();
+  const truckLine = ts === 'away' ? `<div class="truck-line">🚚 В пути — вернётся через ${fmtTime((S.truck.back - now()) / 1000)} с 🪙 ${S.truck.coins}</div>`
+    : ts === 'back' ? `<button class="btn primary" id="tGet">🚚 Забрать 🪙 ${S.truck.coins} у грузовика</button>` : '';
   const cards = S.orders.map((o, i) => {
     if(!o){
       const left = ((S.orderCooldown[i] || 0) - now()) / 1000;
@@ -418,77 +420,151 @@ function viewOrders(){
     const lines = Object.entries(o.items).map(([k, n]) => `<li class="${have(k) >= n ? 'got' : ''}">${ITEMS[k].e} ${ITEMS[k].n} <b>${have(k)}/${n}</b></li>`).join('');
     return `<div class="order ${ok ? 'can' : ''}"><span class="who">${o.who}</span><ul>${lines}</ul>
       <div class="reward">🪙 ${o.coins} · ⭐ ${o.xp}</div>
-      <div class="row"><button class="btn ${ok ? 'primary' : ''}" data-done="${i}" ${ok ? '' : 'disabled'}>Отдать</button><button class="btn ghost" data-skip="${i}" title="Убрать заказ">✕</button></div></div>`;
+      <div class="row"><button class="btn ${ok ? 'primary' : ''}" data-done="${i}" ${ok && ts === 'home' ? '' : 'disabled'}>Отправить</button><button class="btn ghost" data-skip="${i}" title="Убрать заказ">✕</button></div></div>`;
   }).join('');
-  return `<div class="toolbar"><h2>Заказы</h2></div><div class="orders">${cards}</div><p class="hint">Заказы приносят больше монет, чем продажа на складе.</p>`;
+  showSheet('📋 Заказы', `${truckLine}<div class="orders">${cards}</div><p class="hint">Готовый заказ увозит грузовик. Когда вернётся — нажмите на него и заберите монеты.</p>`, sh => {
+    sh.querySelectorAll('[data-done]').forEach(b => b.onclick = () => completeOrder(+b.dataset.done));
+    sh.querySelectorAll('[data-skip]').forEach(b => b.onclick = () => skipOrder(+b.dataset.skip));
+    sh.querySelector('#tGet')?.addEventListener('click', () => { collectTruck(); openOrders(); });
+  }, null, 'orders');
 }
-function bindOrders(root){
-  root.querySelectorAll('[data-done]').forEach(b => b.onclick = () => completeOrder(+b.dataset.done));
-  root.querySelectorAll('[data-skip]').forEach(b => b.onclick = () => skipOrder(+b.dataset.skip));
-}
-
 function openStorage(){
   const keys = Object.keys(S.inv).filter(k => have(k) > 0).sort((a, b) => ITEMS[a].price - ITEMS[b].price);
   const rows = keys.map(k => `<div class="inv-row"><span class="ie">${ITEMS[k].e}</span><span class="in">${ITEMS[k].n}<small>🪙 ${ITEMS[k].price} за шт.</small></span><b class="iq">${have(k)}</b>
-      <button class="btn sm" data-sell="${k}">Продать 1</button></div>`).join('') || '<p class="hint">Склад пуст.</p>';
-  const cost = storageUpgradeCost(S.cap);
-  showSheet(`📦 Склад ${stored()}/${S.cap}`, `<div class="inv">${rows}</div>
-    <button class="btn primary" id="upStore">Расширить до ${S.cap + 25} за 🪙 ${cost}</button>
-    <p class="hint">Продавать друзьям дороже — через 🏪 Лавку во вкладке «Соседи».</p>`, sheet => {
-    sheet.querySelectorAll('[data-sell]').forEach(b => b.onclick = () => { sellOne(b.dataset.sell); openStorage(); });
-    sheet.querySelector('#upStore').onclick = () => { upgradeStorage(); openStorage(); };
+      <button class="btn sm" data-sell="${k}">Продать 1</button></div>`).join('') || '<p class="hint">Амбар пуст.</p>';
+  showSheet(`📦 Амбар ${stored()}/${S.cap}`, `<div class="inv">${rows}</div>
+    <button class="btn primary" id="upStore">Расширить до ${S.cap + 25} за 🪙 ${storageUpgradeCost(S.cap)}</button>
+    <p class="hint">Друзьям можно продать дороже — через 🏪 Лавку в «Соседях».</p>`, sh => {
+    sh.querySelectorAll('[data-sell]').forEach(b => b.onclick = () => { sellOne(b.dataset.sell); openStorage(); });
+    sh.querySelector('#upStore').onclick = () => { upgradeStorage(); openStorage(); };
+  }, null, 'storage');
+}
+function openShop(tab = 'build'){
+  const tabs = `<div class="seg"><button data-t="build" class="${tab === 'build' ? 'active' : ''}">Постройки</button><button data-t="field" class="${tab === 'field' ? 'active' : ''}">Поле</button><button data-t="decor" class="${tab === 'decor' ? 'active' : ''}">Декор</button></div>`;
+  let body = '';
+  if(tab === 'build'){
+    body = Object.keys(BUILDINGS).map(k => {
+      const B = BUILDINGS[k], built = !!S.buildings[k];
+      const sub = B.kind === 'house' ? `${ANIMALS[B.animal].e} даёт ${ITEMS[ANIMALS[B.animal].makes].e}` : Object.keys(RECIPES).filter(r => RECIPES[r].b === k).map(r => ITEMS[r].e).join(' ');
+      return `<div class="shop-row ${built ? 'done' : ''}"><span class="se">${B.e}</span><div class="si"><b>${B.n}</b><small>${sub}</small></div>
+        ${built ? '<span class="tag">есть</span>' : unlocked(k) ? `<button class="btn primary sm" data-build="${k}">🪙 ${B.cost}</button>` : `<span class="tag">🔒 ур. ${B.lvl}</span>`}</div>`;
+    }).join('') + Object.keys(BUILDINGS).filter(k => BUILDINGS[k].kind === 'house' && S.buildings[k]).map(k => {
+      const B = BUILDINGS[k], A = ANIMALS[B.animal], n = S.buildings[k].animals.length;
+      return n < B.slots ? `<div class="shop-row"><span class="se">${A.e}</span><div class="si"><b>${A.n}</b><small>в ${B.n.toLowerCase()} · ${n}/${B.slots}</small></div><button class="btn primary sm" data-animal="${k}">🪙 ${A.cost * (n + 1)}</button></div>` : '';
+    }).join('');
+  } else if(tab === 'field'){
+    body = `<div class="shop-row"><span class="se">🟫</span><div class="si"><b>Грядка</b><small>${S.plots.length} из ${MAX_PLOTS}</small></div>${S.plots.length < MAX_PLOTS ? `<button class="btn primary sm" id="bPlot">🪙 ${plotCost(S.plots.length)}</button>` : ''}</div>
+      <div class="shop-row"><span class="se">📦</span><div class="si"><b>Расширить амбар</b><small>${S.cap} → ${S.cap + 25} мест</small></div><button class="btn primary sm" id="bStore">🪙 ${storageUpgradeCost(S.cap)}</button></div>`;
+  } else {
+    body = Object.keys(DECOR).map(k => {
+      const D = DECOR[k];
+      return `<div class="shop-row"><span class="se">${D.e}</span><div class="si"><b>${D.n}</b><small>${D.w}×${D.h} клетки</small></div>${unlocked(k) ? `<button class="btn primary sm" data-decor="${k}">🪙 ${D.cost}</button>` : `<span class="tag">🔒 ур. ${D.lvl}</span>`}</div>`;
+    }).join('');
+  }
+  showSheet('🛒 Магазин', tabs + `<div class="shop">${body}</div>`, sh => {
+    sh.querySelectorAll('[data-t]').forEach(b => b.onclick = () => openShop(b.dataset.t));
+    sh.querySelectorAll('[data-build]').forEach(b => b.onclick = () => build(b.dataset.build));
+    sh.querySelectorAll('[data-animal]').forEach(b => b.onclick = () => { buyAnimal(b.dataset.animal); openShop('build'); });
+    sh.querySelectorAll('[data-decor]').forEach(b => b.onclick = () => buyDecor(b.dataset.decor));
+    sh.querySelector('#bPlot')?.addEventListener('click', () => { closeSheet(); buyPlot(); });
+    sh.querySelector('#bStore')?.addEventListener('click', () => { upgradeStorage(); openShop('field'); });
+  }, null, 'shop');
+}
+function openSettings(){
+  showSheet('⚙️ Настройки', `<label class="check"><input type="checkbox" id="snd" ${S.sound ? 'checked' : ''}> Звуки</label>
+    <button class="btn" id="tutAgain">Показать подсказки заново</button>
+    <div class="me-box">Вы играете как <b></b>. С другого телефона входите с этим именем и PIN.<button class="btn ghost sm" id="logoutBtn">Выйти</button></div>`, sh => {
+    sh.querySelector('.me-box b').textContent = S.nick;
+    sh.querySelector('#snd').onchange = e => { S.sound = e.target.checked; save(); };
+    sh.querySelector('#tutAgain').onclick = () => { S.tut = 0; save(); closeSheet(); Tut.show(); };
+    sh.querySelector('#logoutBtn').onclick = async () => { await Net.pushState(); localStorage.removeItem(SAVE_KEY); location.reload(); };
   });
 }
 
-const VIEWS = {
-  field:     [viewField, bindField],
-  animals:   [viewAnimals, bindAnimals],
-  factories: [viewFactories, bindFactories],
-  orders:    [viewOrders, bindOrders],
-  friends:   [() => window.Net ? Net.viewFriends() : '', root => window.Net && Net.bindFriends(root)],
+/* ===================== ЗВУК (синтез, без файлов) ===================== */
+const Sound = {
+  ac: null,
+  unlock(){ if(!this.ac){ try{ this.ac = new (window.AudioContext || window.webkitAudioContext)(); }catch(e){} } if(this.ac && this.ac.state === 'suspended') this.ac.resume(); },
+  tone(f, d, type = 'sine', vol = 0.12, slide = 0, delay = 0){
+    if(!this.ac || !S || !S.sound) return;
+    const t = this.ac.currentTime + delay, o = this.ac.createOscillator(), g = this.ac.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t); if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, f + slide), t + d);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + d);
+    o.connect(g); g.connect(this.ac.destination); o.start(t); o.stop(t + d + 0.02);
+  },
+  noise(d, vol = 0.08){
+    if(!this.ac || !S || !S.sound) return;
+    const b = this.ac.createBuffer(1, this.ac.sampleRate * d, this.ac.sampleRate), ch = b.getChannelData(0);
+    for(let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / ch.length);
+    const s = this.ac.createBufferSource(), g = this.ac.createGain(), f = this.ac.createBiquadFilter();
+    f.type = 'highpass'; f.frequency.value = 2000; s.buffer = b; g.gain.value = vol;
+    s.connect(f); f.connect(g); g.connect(this.ac.destination); s.start();
+  },
+  play(name){
+    switch(name){
+      case 'plant': this.tone(520, 0.08, 'triangle', 0.08, 120); break;
+      case 'harvest': this.noise(0.12, 0.06); this.tone(700, 0.06, 'triangle', 0.05, 200); break;
+      case 'pop': this.tone(600, 0.1, 'sine', 0.12, 400); break;
+      case 'coin': this.tone(988, 0.08, 'square', 0.05); this.tone(1319, 0.14, 'square', 0.05, 0, 0.07); break;
+      case 'build': this.tone(220, 0.12, 'sawtooth', 0.05); this.tone(330, 0.16, 'triangle', 0.07, 0, 0.1); break;
+      case 'level': [523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.18, 'triangle', 0.08, 0, i * 0.11)); break;
+      case 'truck': this.tone(110, 0.4, 'sawtooth', 0.04, -30); break;
+      case 'chicken': this.tone(900, 0.06, 'square', 0.03, 400); this.tone(1100, 0.07, 'square', 0.03, 300, 0.08); break;
+      case 'cow': this.tone(140, 0.45, 'sawtooth', 0.05, -40); break;
+      case 'sheep': this.tone(380, 0.35, 'sawtooth', 0.035, 20); break;
+      case 'tap': this.tone(440, 0.04, 'sine', 0.05); break;
+    }
+  },
 };
-function render(){
-  if(!S) return;
-  renderHud();
-  const [view, bind] = VIEWS[tab];
-  const main = $('#main');
-  const scroll = main.scrollTop;
-  main.innerHTML = view();
-  bind(main);
-  main.scrollTop = scroll;
-  document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  const readyField = S.plots.some(p => plotState(p).s === 'ready');
-  const readyOrders = (S.orders || []).some(o => o && canPay(o.items));
-  $('#navFieldDot').hidden = !readyField || tab === 'field';
-  $('#navOrdersDot').hidden = !readyOrders || tab === 'orders';
-}
-function setTab(t){ tab = t; $('#main').scrollTop = 0; render(); }
 
-// Тик: каждую секунду обновляем таймеры (если не открыт ввод).
-setInterval(() => {
-  if(!S) return;
-  const a = document.activeElement;
-  if(a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT')) return;
-  if(tab === 'friends' && window.Net && Net.isBusy()) return;
-  render();
-}, 1000);
+/* ===================== ОБУЧЕНИЕ ===================== */
+const TUT = [
+  { text:'👆 Нажмите на пустую грядку, затем проведите пальцем от 🌾 по грядкам — так сеют.', ev:'plant' },
+  { text:'⏳ Пшеница растёт 1 минуту. Когда созреет — нажмите на грядку и проведите серпом 🌙 по полю.', ev:'harvest' },
+  { text:'🏭 Нажмите на кормовой завод и сделайте корм для кур.', ev:'produce' },
+  { text:'🐔 Когда корм будет готов, заберите его и нажмите на курятник — проведите кормом по курам.', ev:'feed' },
+  { text:'📋 Нажмите на доску заказов у дороги и отправьте заказ грузовиком.', ev:'order' },
+];
+const Tut = {
+  on(ev){
+    if(!S || S.tut >= TUT.length) return;
+    if(TUT[S.tut].ev === ev){ S.tut++; this.show(); }
+  },
+  show(){
+    const el = $('#tut');
+    if(!S || S.tut >= TUT.length){ el.hidden = true; return; }
+    el.hidden = false; el.querySelector('span').textContent = TUT[S.tut].text;
+  },
+};
 
 function startGame(state){
-  S = state;
-  // совместимость со старыми сохранениями
-  S.orders = S.orders || []; S.orderCooldown = S.orderCooldown || {}; S.helped = S.helped || {};
-  S.buildings = S.buildings || {};
+  S = migrate(state);
   fillOrders();
   $('#auth').hidden = true;
   $('#app').hidden = false;
-  render();
+  Engine.start();
+  renderHud(); Tut.show();
   save();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('.nav button').forEach(b => b.onclick = () => setTab(b.dataset.tab));
+  $('#btnShop').onclick = () => openShop();
+  $('#btnOrders').onclick = openOrders;
+  $('#btnFriends').onclick = () => Net.openFriends();
+  $('#btnSettings').onclick = openSettings;
   $('#hudStoreBtn').onclick = openStorage;
   $('#sheetClose').onclick = closeSheet;
   $('#sheet').onclick = e => { if(e.target.id === 'sheet') closeSheet(); };
+  $('#tut button').onclick = () => { S.tut = 99; save(); Tut.show(); };
+  document.addEventListener('pointerdown', () => Sound.unlock(), { capture: true });
   if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+  // Окна с таймерами обновляются раз в секунду.
+  setInterval(() => {
+    if(!S) return;
+    renderHud();
+    const a = document.activeElement;
+    if(a && /INPUT|TEXTAREA|SELECT/.test(a.tagName)) return;
+    if(sheetKind === 'orders') openOrders();
+    else if(sheetKind && sheetKind.startsWith('factory:')) openFactory(sheetKind.slice(8));
+  }, 1000);
 });

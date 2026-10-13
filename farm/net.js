@@ -81,6 +81,7 @@ const Net = {
     this.online = v;
     const d = document.getElementById('netDot');
     if(d){ d.className = 'net-dot ' + (v ? 'on' : 'off'); d.title = v ? 'Связь с соседями есть' : 'Нет связи — игра сохраняется на телефоне'; }
+    if(Engine.visit) this.renderVisitBar();
   },
   async sync(){
     if(!S) return;
@@ -115,8 +116,8 @@ const Net = {
           changed = true;
         }
       }
-      if(changed){ save(); render(); }
-      else if(tab === 'friends') render();
+      if(changed) save();
+      if(sheetOpen('friends')) this.openFriends(true);
     }catch(e){ this.setOnline(false); }
   },
 
@@ -128,8 +129,9 @@ const Net = {
       await api(`help/${fid}`, 'POST', { from: S.pid, fromNick: S.nick, ts: Date.now() });
       S.helped[fid] = Date.now();
       S.coins += 10; gainXp(3);
+      Sound.play('coin');
       toast('💧 Полито! +🪙 10, +⭐ 3');
-      save(); render();
+      save(); this.renderVisitBar();
     }catch(e){ toast('Нет связи'); }
   },
 
@@ -171,7 +173,7 @@ const Net = {
           const r = await api('market', 'POST', { seller: S.pid, sellerNick: S.nick, item: k, qty: n, price, ts: Date.now() });
           S.shop = [...(S.shop || []), r.name];
           this.market[r.name] = { seller: S.pid, sellerNick: S.nick, item: k, qty: n, price, ts: Date.now() };
-          closeSheet(); toast('Выставлено в лавку'); save(); render();
+          toast('Выставлено в лавку'); save(); this.openFriends();
         }catch(e){ add(k, n); save(); toast('Нет связи — товар вернулся на склад'); }
       };
     });
@@ -179,13 +181,13 @@ const Net = {
   async cancelListing(id){
     try{
       const l = await api(`market/${enc(id)}`);
-      if(!l){ delete this.market[id]; render(); return; }
+      if(!l){ delete this.market[id]; this.openFriends(); return; }
       if(l.buyer) return toast('Уже купили — монеты придут через несколько секунд');
       if(spaceLeft() < l.qty) return toast('📦 Склад полон');
       await api(`market/${enc(id)}`, 'DELETE');
       add(l.item, l.qty); delete this.market[id];
       S.shop = (S.shop || []).filter(x => x !== id);
-      save(); render();
+      save(); this.openFriends();
     }catch(e){ toast('Нет связи'); }
   },
   async buy(id){
@@ -205,12 +207,13 @@ const Net = {
       S.coins -= cur.price; add(cur.item, cur.qty);
       this.market[id] = { ...cur, buyer: S.pid };
       toast(`Куплено: ${ITEMS[cur.item].e}×${cur.qty}`);
-      save(); closeSheet(); render();
+      Sound.play('coin');
+      save(); if(sheetOpen('friends')) this.openFriends(); else closeSheet();
     }catch(e){ toast('Нет связи'); }
   },
 
-  /* ---------- экран «Соседи» ---------- */
-  viewFriends(){
+  /* ---------- окно «Соседи» ---------- */
+  openFriends(quiet){
     const mine = this.myListings();
     const slots = this.shopSlots();
     const shop = mine.map(([id, l]) => `<div class="stall ${l.buyer ? 'sold' : ''}"><span class="se">${ITEMS[l.item].e}<sub>×${l.qty}</sub></span><small>🪙 ${l.price}</small>
@@ -227,51 +230,75 @@ const Net = {
     const market = forSale.sort((a, b) => b[1].ts - a[1].ts).slice(0, 30).map(([id, l]) => `<div class="offer">
         <span class="oe">${ITEMS[l.item].e}<sub>×${l.qty}</sub></span><div class="oi"><b>${ITEMS[l.item].n}</b><small>${esc(l.sellerNick)}</small></div>
         <button class="btn primary sm" data-buy="${esc(id)}">🪙 ${l.price}</button></div>`).join('') || '<p class="hint">Соседи пока ничего не продают.</p>';
-    return `<div class="toolbar"><h2>Соседи</h2><span class="net-dot ${this.online ? 'on' : 'off'}" id="netDot"></span></div>
-      <div class="card"><div class="card-h"><span class="ce">🏪</span><div><b>Моя лавка</b><small>Друзья могут купить ваши товары. Мест: ${slots}</small></div></div>
-        <div class="stalls">${shop}</div></div>
-      <div class="card"><div class="card-h"><span class="ce">🛒</span><div><b>Рынок соседей</b><small>Обновляется раз в 15 секунд</small></div></div><div class="offers">${market}</div></div>
-      <div class="card"><div class="card-h"><span class="ce">👋</span><div><b>Соседи</b><small>Заходите в гости и поливайте грядки — им быстрее, вам монеты</small></div></div>${list}</div>
-      <div class="me-box">Вы играете как <b>${esc(S.nick)}</b>. Чтобы играть с другого телефона, войдите с этим именем и своим PIN.
-        <button class="btn ghost sm" id="logoutBtn">Выйти</button></div>`;
+    const scroll = quiet ? document.querySelector('.sheet-box')?.scrollTop : 0;
+    showSheet('👋 Соседи', `
+      <div class="card-lite"><b>🏪 Моя лавка</b><small>Друзья покупают ваши товары. Мест: ${slots}</small><div class="stalls">${shop}</div></div>
+      <div class="card-lite"><b>🛒 Рынок соседей</b><div class="offers">${market}</div></div>
+      <div class="card-lite"><b>🏡 Соседи</b><small>Заходите в гости и поливайте грядки — им быстрее, вам монеты</small>${list}</div>
+      <p class="hint">${this.online ? '🟢 Связь есть' : '🔴 Нет связи — игра сохраняется на телефоне'}</p>`, root => {
+      root.querySelector('#sellBtn')?.addEventListener('click', () => this.openSell());
+      root.querySelectorAll('[data-unlist]').forEach(b => b.onclick = () => this.cancelListing(b.dataset.unlist));
+      root.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => this.buy(b.dataset.buy));
+      root.querySelectorAll('[data-visit]').forEach(b => b.onclick = () => this.visit(b.dataset.visit));
+    }, null, 'friends');
+    if(quiet && scroll) document.querySelector('.sheet-box').scrollTop = scroll;
   },
-  bindFriends(root){
-    root.querySelector('#sellBtn')?.addEventListener('click', () => this.openSell());
-    root.querySelectorAll('[data-unlist]').forEach(b => b.onclick = () => this.cancelListing(b.dataset.unlist));
-    root.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => this.buy(b.dataset.buy));
-    root.querySelectorAll('[data-visit]').forEach(b => b.onclick = () => this.visit(b.dataset.visit));
-    root.querySelector('#logoutBtn')?.addEventListener('click', () => {
-      showSheet('Выйти?', `<p>Прогресс сохранён в облаке. Чтобы вернуться, войдите с именем <b>${esc(S.nick)}</b> и PIN.</p><button class="btn primary" id="lo">Выйти</button>`, sh => {
-        sh.querySelector('#lo').onclick = async () => { await this.pushState(); localStorage.removeItem(SAVE_KEY); location.reload(); };
-      });
-    });
-  },
+
+  /* ---------- в гостях: ферма соседа на карте ---------- */
+  visitId: null,
   async visit(fid){
-    const p = this.players[fid];
-    showSheet(`🏡 ${p ? p.nick : 'Сосед'}`, '<p class="hint">Загружаю ферму...</p>');
     let st;
-    try{ st = await api(`states/${fid}`); }catch(e){ return showSheet('Нет связи', '<p>Не удалось загрузить ферму соседа.</p><button class="btn" data-close>Закрыть</button>'); }
-    if(!st) return showSheet('Пусто', '<p>Ферма не найдена.</p><button class="btn" data-close>Закрыть</button>');
-    const plots = (st.plots || []).map(pl => {
-      if(!pl.crop) return '<div class="plot empty mini"><span class="soil">·</span></div>';
-      const left = pl.start + ITEMS[pl.crop].time * 1000 - Date.now();
-      return `<div class="plot mini ${left <= 0 ? 'ready' : 'growing'}"><span class="crop">${ITEMS[pl.crop].e}</span>${left > 0 ? `<span class="t">${fmtTime(left / 1000)}</span>` : ''}</div>`;
-    }).join('');
-    const growing = (st.plots || []).some(pl => pl.crop && pl.start + ITEMS[pl.crop].time * 1000 > Date.now());
-    const animals = Object.entries(st.buildings || {}).filter(([k]) => BUILDINGS[k]?.kind === 'house')
-      .map(([k, b]) => `${BUILDINGS[k].e} ${ANIMALS[BUILDINGS[k].animal].e}×${(b.animals || []).length}`).join(' · ');
-    const factories = Object.keys(st.buildings || {}).filter(k => BUILDINGS[k]?.kind === 'factory').map(k => BUILDINGS[k].e).join(' ');
-    const stall = Object.entries(this.market).filter(([, l]) => l && l.seller === fid && !l.buyer).map(([id, l]) =>
-      `<div class="offer"><span class="oe">${ITEMS[l.item].e}<sub>×${l.qty}</sub></span><div class="oi"><b>${ITEMS[l.item].n}</b></div><button class="btn primary sm" data-buy="${esc(id)}">🪙 ${l.price}</button></div>`).join('');
-    const canHelp = this.canHelp(fid);
-    showSheet(`🏡 ${st.nick} · ур. ${st.lvl}`, `
-      <div class="field mini">${plots}</div>
-      <p class="hint">${animals || 'Животных пока нет'}${factories ? ' · ' + factories : ''}</p>
-      ${growing ? `<button class="btn primary" id="helpBtn" ${canHelp ? '' : 'disabled'}>${canHelp ? '💧 Полить грядки (+🪙 10)' : '💧 Уже поливали — можно позже'}</button>` : '<p class="hint">Сейчас ничего не растёт — поливать нечего.</p>'}
-      ${stall ? `<h3>Лавка</h3><div class="offers">${stall}</div>` : ''}`, sheet => {
-      sheet.querySelector('#helpBtn')?.addEventListener('click', async () => { await this.help(fid); closeSheet(); });
-      sheet.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => this.buy(b.dataset.buy));
+    try{ st = await api(`states/${fid}`); }catch(e){ return toast('Нет связи — не удалось загрузить ферму соседа'); }
+    if(!st || !st.plots) return toast('Ферма не найдена');
+    closeSheet();
+    const copy = migrate(JSON.parse(JSON.stringify(st)));
+    Engine.animals.clear();
+    Engine.visit = copy; this.visitId = fid;
+    Radial.close();
+    document.body.classList.add('visiting');
+    this.renderVisitBar();
+    Engine.focus(8.5, 9);
+  },
+  leaveVisit(){
+    Engine.visit = null; this.visitId = null; Engine.animals.clear();
+    document.body.classList.remove('visiting');
+    document.getElementById('visitBar').hidden = true;
+    Engine.focus(8.5, 9);
+  },
+  renderVisitBar(){
+    const bar = document.getElementById('visitBar');
+    const st = Engine.visit; if(!st){ bar.hidden = true; return; }
+    const growing = st.plots.some(p => p.crop && p.start + ITEMS[p.crop].time * 1000 > Date.now());
+    const can = this.canHelp(this.visitId);
+    const stall = Object.values(this.market).filter(l => l && l.seller === this.visitId && !l.buyer).length;
+    bar.hidden = false;
+    bar.innerHTML = `<div class="vb-name">🏡 <b></b> · ур. ${st.lvl}</div><div class="vb-row">
+      <button class="btn sm ${growing && can ? 'primary' : ''}" id="vbHelp" ${growing && can ? '' : 'disabled'}>${!growing ? '💧 Нечего поливать' : can ? '💧 Полить (+🪙 10)' : '💧 Уже поливали'}</button>
+      ${stall ? `<button class="btn sm" id="vbShop">🏪 Лавка (${stall})</button>` : ''}
+      <button class="btn sm" id="vbHome">← Домой</button></div>`;
+    bar.querySelector('b').textContent = st.nick;
+    bar.querySelector('#vbHome').onclick = () => this.leaveVisit();
+    bar.querySelector('#vbHelp')?.addEventListener('click', () => this.help(this.visitId));
+    bar.querySelector('#vbShop')?.addEventListener('click', () => this.openStall(this.visitId));
+  },
+  openStall(fid){
+    const items = Object.entries(this.market).filter(([, l]) => l && l.seller === fid && !l.buyer);
+    showSheet('🏪 Лавка соседа', `<div class="offers">${items.map(([id, l]) => `<div class="offer"><span class="oe">${ITEMS[l.item].e}<sub>×${l.qty}</sub></span><div class="oi"><b>${ITEMS[l.item].n}</b></div><button class="btn primary sm" data-buy="${esc(id)}">🪙 ${l.price}</button></div>`).join('') || '<p class="hint">Всё раскупили.</p>'}</div>`, sh => {
+      sh.querySelectorAll('[data-buy]').forEach(b => b.onclick = async () => { await this.buy(b.dataset.buy); this.renderVisitBar(); this.openStall(fid); });
     });
+  },
+  tapVisit(obj, w){
+    if(!obj) return;
+    const st = Engine.visit;
+    if(obj.type === 'plot'){
+      const p = st.plots[obj.idx];
+      if(!p.crop) return;
+      const left = (p.start + ITEMS[p.crop].time * 1000 - Date.now()) / 1000;
+      const s = Engine.toScreen(w.x, w.y);
+      Engine.tip(s.x, s.y, `${ITEMS[p.crop].e} ${ITEMS[p.crop].n}${left > 0 ? ' · ещё ' + fmtTime(left) : ' · созрело'}`);
+    } else if(obj.type === 'board' && Object.values(this.market).some(l => l && l.seller === this.visitId && !l.buyer)){
+      this.openStall(this.visitId);
+    }
   },
 };
 window.Net = Net;
