@@ -167,7 +167,7 @@ function gainXp(n){
     ];
     S.coins += 20 * S.lvl;
     const lg = S.lvl % 5 === 0 ? 3 : 1; addGems(lg);
-    if(S.lvl >= 3 && window.Social) Social.sys(`🎉 ${S.nick} достиг ${S.lvl} уровня!`);
+    if(S.lvl >= 3 && !S.admin && window.Social) Social.sys(`🎉 ${S.nick} достиг ${S.lvl} уровня!`);
     Sound.play('level'); buzz([30, 40, 60]);
     { const c = Engine.toWorld(window.innerWidth / 2, window.innerHeight / 2); Engine.burst(c.x, c.y, 'confetti', { n: 60, lift: 60 }); }
     showSheet(`🎉 Уровень ${S.lvl}!`, `<p class="big">Награда: 🪙 ${20 * S.lvl} и 💎 ${lg}</p>${opened.length ? `<p>Открыто:</p><div class="chips">${opened.map(o => `<span class="chip">${o}</span>`).join('')}</div>` : ''}<p class="hint">Новые постройки — в 🛒 Магазине.</p><button class="btn primary" data-close>Отлично</button>`);
@@ -623,6 +623,7 @@ function openSettings(){
     <label class="check"><input type="checkbox" id="vib" ${S.vibro ? 'checked' : ''}> Вибрация</label>
     <label class="check"><input type="checkbox" id="ntf" ${S.notify && nState === 'granted' ? 'checked' : ''} ${nState === 'none' || nState === 'denied' ? 'disabled' : ''}> Уведомления, когда всё готово</label>
     ${nState === 'denied' ? '<p class="hint">Уведомления запрещены в браузере — разрешите их в настройках сайта.</p>' : nState === 'none' ? '<p class="hint">Этот браузер не умеет показывать уведомления. На телефоне добавьте игру на главный экран.</p>' : '<p class="hint">Придут, пока игра открыта или свёрнута.</p>'}
+    ${S.admin ? '<button class="btn primary" id="adminBtn">🛠 Панель админа</button>' : ''}
     <button class="btn" id="tutAgain">Показать подсказки заново</button>
     <div class="me-box">Вы играете как <b></b>. С другого телефона входите с этим именем и PIN.<button class="btn ghost sm" id="logoutBtn">Выйти</button></div>`, sh => {
     sh.querySelector('.me-box b').textContent = S.nick;
@@ -634,6 +635,7 @@ function openSettings(){
       else S.notify = false;
       save();
     };
+    sh.querySelector('#adminBtn')?.addEventListener('click', openAdmin);
     sh.querySelector('#tutAgain').onclick = () => { S.tut = 0; save(); closeSheet(); Tut.show(); };
     sh.querySelector('#logoutBtn').onclick = async () => { await Net.pushState(); localStorage.removeItem(SAVE_KEY); location.reload(); };
   });

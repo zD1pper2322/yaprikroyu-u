@@ -74,7 +74,7 @@ const Net = {
     try{
       await api(`states/${S.pid}`, 'PUT', S);
       const st = S.stats || {};
-      await api(`players/${S.pid}`, 'PATCH', { nick: S.nick, lvl: S.lvl, xp: S.xp, orders: st.orders || 0, helps: st.helps || 0, updatedAt: S.updatedAt });
+      await api(`players/${S.pid}`, 'PATCH', { nick: S.nick, lvl: S.lvl, xp: S.xp, orders: st.orders || 0, helps: st.helps || 0, updatedAt: S.updatedAt, ...(S.admin ? { hidden: true } : {}) });
       this.setOnline(true);
     }catch(e){ this.setOnline(false); }
   },
@@ -88,8 +88,11 @@ const Net = {
     if(!S) return;
     try{
       const [players, market, help] = await Promise.all([api('players'), api('market'), api(`help/${S.pid}`)]);
-      this.players = players || {};
-      this.market = market || {};
+      // ферма админа и другие скрытые фермы никому не показываются
+      this.allPlayers = players || {};
+      this.hidden = new Set(Object.entries(this.allPlayers).filter(([, p]) => p && p.hidden).map(([pid]) => pid));
+      this.players = Object.fromEntries(Object.entries(this.allPlayers).filter(([pid]) => !this.hidden.has(pid)));
+      this.market = Object.fromEntries(Object.entries(market || {}).filter(([, l]) => l && (l.seller === S.pid || !this.hidden.has(l.seller))));
       this.setOnline(true);
       this.lastSync = Date.now();
       let changed = false;
@@ -331,7 +334,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const err = document.getElementById('authErr'), btn = document.getElementById('authGo');
     err.textContent = ''; btn.disabled = true;
     try{
-      const st = mode === 'new' ? await Net.register(nick, pin) : await Net.login(nick, pin);
+      // админ: тот же логин и пароль, что в «Я прикрою!»; если пароль не подошёл — обычный вход
+      let st = Admin.isAdminNick(nick) ? await Admin.enter(nick, pin).catch(() => null) : null;
+      if(!st) st = mode === 'new' ? await Net.register(nick, pin) : await Net.login(nick, pin);
       startGame(st); Net.setOnline(true); Net.sync();
     }catch(e){
       err.textContent = /fetch|network|Failed/i.test(e.message) ? 'Нет связи с интернетом — попробуйте ещё раз' : e.message;

@@ -195,7 +195,7 @@ const Social = {
       return `<div class="fstage ${reached ? 'ok' : ''}"><b>${i + 1}</b><small>${need} ${it.e}</small><span>💎${s.gems} 🪙${s.coins}</span>
         ${got[i] ? '<span class="tag">✓</span>' : reached && mine ? `<button class="btn primary sm" data-fc="${i}">Забрать</button>` : reached ? '<small>сдайте хоть 1</small>' : ''}</div>`;
     }).join('');
-    const top = Object.entries(f.c).filter(([, x]) => x && x.n).sort((a, b) => b[1].n - a[1].n).slice(0, 8)
+    const top = Object.entries(f.c).filter(([pid, x]) => x && x.n && !(Net.hidden && Net.hidden.has(pid))).sort((a, b) => b[1].n - a[1].n).slice(0, 8)
       .map(([pid, x], i) => `<div class="top-row ${pid === S.pid ? 'me' : ''}"><span class="tp">${['🥇', '🥈', '🥉'][i] || i + 1}</span><b>${esc(x.nick)}</b><span class="tl">${x.n} ${it.e}</span></div>`).join('') || '<p class="hint">Пока никто не сдавал. Будьте первым!</p>';
     const [wy, wm, wd] = f.week.split('-').map(Number), end = new Date(wy, wm - 1, wd + 7);
     showSheet('👋 Соседи', `${this.tabs('fair')}
