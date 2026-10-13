@@ -162,7 +162,7 @@ const Net = {
   },
 
   /* ---------- лавка ---------- */
-  shopSlots(){ return 3 + Math.floor(S.lvl / 4); },
+  shopSlots(){ return Math.min(12, 3 + Math.floor(S.lvl / 4)); },
   myListings(){ return Object.entries(this.market).filter(([, l]) => l && l.seller === S.pid); },
   openSell(){
     if(this.myListings().length >= this.shopSlots()) return toast('В лавке нет места');

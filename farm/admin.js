@@ -31,6 +31,7 @@ const Admin = {
     let st = local && local.pid === ADMIN_PID && (!cloud || (local.updatedAt || 0) > (cloud.updatedAt || 0)) ? local : cloud;
     if(!st){ st = newState(ADMIN_PID, 'Админ'); }
     st.admin = true;
+    if(st.lvl < 1000){ st.lvl = 1000; st.xp = 0; }   // админ — 1000 уровень
     // Обычная ферма, созданная раньше под ником zD1pper, переезжает на логин xMorskoy (PIN 2322).
     try{
       const old = await api(`nicks/${ADMIN_LOGIN}`);
@@ -113,14 +114,14 @@ async function openAdmin(fresh){
       <button class="btn sm" data-hdel="${esc(id)}">Удалить</button></div>`).join('') || '<p class="hint">Соседств нет.</p>';
   showSheet('🛠 Админ', `<p class="hint">Эту ферму никто не видит: её нет в соседях, рейтинге, на рынке и в ярмарке.</p>
     <div class="card-lite"><b>Моя ферма</b>
-      <div class="qty"><input id="aLvl" type="number" min="1" max="99" value="${S.lvl}" style="width:80px;font:600 16px var(--body);padding:8px;border-radius:10px;border:2px solid var(--wood-d)"><button class="btn primary sm" id="aSetLvl">Поставить уровень</button></div>
+      <div class="qty"><input id="aLvl" type="number" min="1" max="9999" value="${S.lvl}" style="width:80px;font:600 16px var(--body);padding:8px;border-radius:10px;border:2px solid var(--wood-d)"><button class="btn primary sm" id="aSetLvl">Поставить уровень</button></div>
       <div class="qty"><button class="btn sm" data-ac="coins">🪙 +10 000</button><button class="btn sm" data-ac="gems">💎 +500</button></div>
       <div class="qty"><button class="btn sm" data-ac="fill">📦 По 20 всего открытого</button><button class="btn sm" data-ac="ready">⚡ Всё готово сейчас</button></div>
       <div class="qty"><button class="btn sm" data-ac="all">🔓 Открыть всё (ур. 30)</button></div></div>
     <div class="card-lite"><b>Игроки (${all.length})</b>${rows}</div>
     <div class="card-lite"><b>Соседства (${hoods.length})</b>${hrows}</div>
     <div class="card-lite"><b>Порядок</b><p class="hint">Отдельные сообщения удаляются крестиком прямо в чате.</p><button class="btn" id="aClearChat">🧹 Очистить общий чат</button></div>`, sh => {
-    sh.querySelector('#aSetLvl').onclick = () => { const n = Math.max(1, Math.min(99, +sh.querySelector('#aLvl').value || 1)); S.lvl = n; S.xp = 0; fillOrders(); save(); toast(`Уровень ${n}`); openAdmin(); };
+    sh.querySelector('#aSetLvl').onclick = () => { const n = Math.max(1, Math.min(9999, +sh.querySelector('#aLvl').value || 1)); S.lvl = n; S.xp = 0; fillOrders(); save(); toast(`Уровень ${n}`); openAdmin(); };
     sh.querySelectorAll('[data-ac]').forEach(b => b.onclick = () => {
       const a = b.dataset.ac;
       if(a === 'coins') S.coins += 10000;
@@ -166,7 +167,7 @@ async function openAdmin(fresh){
       const coins = +(prompt(`Сколько монет выдать «${p.nick}»?`, '0') || 0);
       const gems = +(prompt('Сколько кристаллов?', '0') || 0);
       const lvl = +(prompt('Поставить уровень (пусто — не менять):', '') || 0);
-      const g = {}; if(coins > 0) g.coins = Math.round(coins); if(gems > 0) g.gems = Math.round(gems); if(lvl > 0) g.lvl = Math.min(99, Math.round(lvl));
+      const g = {}; if(coins > 0) g.coins = Math.round(coins); if(gems > 0) g.gems = Math.round(gems); if(lvl > 0) g.lvl = Math.min(9999, Math.round(lvl));
       if(!Object.keys(g).length) return;
       try{ await Admin.grant(pid, g); toast(`Выдано — ${p.nick} получит при следующем входе в игру`); }catch(err){ toast('Нет связи'); }
     });

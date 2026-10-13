@@ -313,6 +313,8 @@ function collectFactory(bk){
 }
 
 /* ===================== ЗАКАЗЫ И ГРУЗОВИК ===================== */
+// Для размеров заказов и наград уровень ограничен 40 — иначе на огромных уровнях (у админа) заказы раздуваются.
+const effLvl = () => Math.min(S.lvl, 40);
 const ORDER_SLOTS = () => Math.min(6, 3 + Math.floor(S.lvl / 4));
 function orderable(){
   return Object.keys(ITEMS).filter(k => {
@@ -327,11 +329,11 @@ function orderable(){
 }
 function makeOrder(){
   const pool = orderable().sort(() => Math.random() - 0.5);
-  const kinds = Math.min(pool.length, 1 + Math.floor(Math.random() * Math.min(3, 1 + S.lvl / 3)));
+  const kinds = Math.min(pool.length, 1 + Math.floor(Math.random() * Math.min(3, 1 + effLvl() / 3)));
   const items = {};
   pool.slice(0, kinds).forEach(k => {
     const kind = ITEMS[k].kind;
-    const max = kind === 'crop' ? 4 + Math.floor(S.lvl / 2) : kind === 'animal' ? 3 : 2;
+    const max = kind === 'crop' ? 4 + Math.floor(effLvl() / 2) : kind === 'animal' ? 3 : 2;
     items[k] = 1 + Math.floor(Math.random() * max);
   });
   const value = Object.entries(items).reduce((s, [k, n]) => s + ITEMS[k].price * n, 0);
@@ -495,6 +497,7 @@ function renderHud(){
   if(!S) return;
   const need = xpForLevel(S.lvl);
   $('#hudLvl').textContent = S.lvl;
+  $('#hudLvl').parentElement.classList.toggle('big', S.lvl >= 100);
   $('#hudXp').style.width = Math.min(100, S.xp / need * 100) + '%';
   $('#hudXpText').textContent = `${S.xp}/${need}`;
   $('#hudCoins').textContent = S.coins;
@@ -773,6 +776,7 @@ const Tut = {
 
 function startGame(state){
   S = migrate(state);
+  if(S.admin && S.lvl < 1000){ S.lvl = 1000; S.xp = 0; }
   fillOrders();
   $('#auth').hidden = true;
   $('#app').hidden = false;

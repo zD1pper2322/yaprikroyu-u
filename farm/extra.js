@@ -84,7 +84,7 @@ const Daily = {
     return { harvest: `Собрать ${it?.e} ${it?.n.toLowerCase()}`, produce: `Сделать ${it?.e} ${it?.n.toLowerCase()}`, animal: `Собрать ${it?.e} ${it?.n.toLowerCase()}`,
       order: '📋 Отправить заказы грузовиком', boat: '⛵ Загрузить ящики на корабль', plant: '🌱 Посадить грядки' }[t.k];
   },
-  reward(){ return { coins: 20 + S.lvl * 8, xp: 4 + S.lvl }; },
+  reward(){ const l = Math.min(S.lvl, 40); return { coins: 20 + l * 8, xp: 4 + l }; },
   check(){
     const today = this.key(now());
     if(S.daily && S.daily.day === today) return;
@@ -246,7 +246,7 @@ const Chest = {
     else if(roll < 0.5){
       const k = CROPS.filter(unlocked)[Math.floor(Math.random() * CROPS.filter(unlocked).length)], n = 3 + Math.floor(Math.random() * 4);
       const got = Math.min(n, spaceLeft()); if(got > 0){ add(k, got); text = `${ITEMS[k].e} ×${got}`; } else { S.coins += 30; text = '🪙 30'; }
-    } else { const n = 10 + Math.floor(Math.random() * 10) * S.lvl; S.coins += n; text = `🪙 ${n}`; }
+    } else { const n = 10 + Math.floor(Math.random() * 10) * Math.min(S.lvl, 40); S.coins += n; text = `🪙 ${n}`; }
     Engine.burst((c.gx + 0.5) * TILE, (c.gy + 0.5) * TILE, 'spark', { n: 24, lift: 30 });
     Engine.burst((c.gx + 0.5) * TILE, (c.gy + 0.5) * TILE, 'coin', { n: 10, lift: 30 });
     Engine.flyFromWorld(text, (c.gx + 0.5) * TILE, (c.gy + 0.5) * TILE, text.startsWith('🪙') ? 'coins' : 'store');
