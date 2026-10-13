@@ -236,7 +236,7 @@ const Engine = {
     objs.filter(o => o.type === 'plot').sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy)).forEach(o => {
       const p = st.plots[o.idx], ps = plotState(p);
       const hl = this.tool && ((this.tool.kind === 'seed' && ps.s === 'empty') || (this.tool.kind === 'sickle' && ps.s === 'ready')) ? '#ffffffcc' : (p.helpedBy && ps.s === 'growing' ? '#7fd3ff' : null);
-      Art.plotBed(c, o.gx * T, o.gy * T, o.w * T, ps.s === 'ready', hl);
+      if(!Sprites.get(plotSprite(p))) Art.plotBed(c, o.gx * T, o.gy * T, o.w * T, ps.s === 'ready', hl);
       if(this.moving && this.moving.key === o.key){ const q = [Art.P(o.gx * T, o.gy * T), Art.P((o.gx + 2) * T, o.gy * T), Art.P((o.gx + 2) * T, (o.gy + 2) * T), Art.P(o.gx * T, (o.gy + 2) * T)]; Art.poly(c, q.map(v => ({ x: v.x, y: v.y - 9 })), this.moving.ok ? '#3fcf4a55' : '#e5533d66'); }
     });
     // 2) задний забор хутора
@@ -267,6 +267,18 @@ const Engine = {
       const depth = x + w / 2 + y + h / 2;
       if(o.type === 'plot'){
         const p = st.plots[o.idx], ps = plotState(p);
+        const spr = plotSprite(p);
+        if(Sprites.get(spr)){
+          // объёмная грядка с урожаем одной картинкой
+          const hl = this.tool && ((this.tool.kind === 'seed' && ps.s === 'empty') || (this.tool.kind === 'sickle' && ps.s === 'ready')) ? '#ffffffcc' : (p.helpedBy && ps.s === 'growing' ? '#7fd3ff' : null);
+          add(x + y + w * 0.5, () => {
+            const cc = Art.P(x + w / 2, y + h / 2);
+            Sprites.draw(c, spr, cc.x, cc.y);
+            if(hl || ps.s === 'ready'){ const q = [Art.P(x + 5, y + 5), Art.P(x + w - 5, y + 5), Art.P(x + w - 5, y + h - 5), Art.P(x + 5, y + h - 5)].map(v => ({ x: v.x, y: v.y - 12 })); Art.poly(c, q, null, hl || '#ffd84a', hl ? 5 : 3); }
+            if(ps.s === 'ready'){ const q = Art.P(x + w * 0.85, y + h * 0.15); c.fillStyle = `rgba(255,255,255,${0.5 + 0.5 * Math.sin(time * 3 + o.idx)})`; Art.star(c, q.x, q.y - 40, 8); }
+          });
+          continue;
+        }
         if(!p.crop) continue;
         add(x + y + w * 0.6, () => {
           const r = rnd((o.idx + 1) * 31 + 7), stage = ps.s === 'ready' ? 3 : ps.pct < 0.33 ? 0 : ps.pct < 0.66 ? 1 : 2;

@@ -78,8 +78,9 @@ const Life = {
     // покупатели: приходят по дороге к доске заказов и уходят
     if(!Engine.visit && now() > this.nextVisitor && this.visitors.length < 2){
       this.nextVisitor = now() + 25000 + Math.random() * 35000;
-      const look = [['#e53935', '#3949ab', '#6d4c41'], ['#43a047', '#5d4037', '#212121'], ['#8e24aa', '#00897b', '#f9a825'], ['#fb8c00', '#455a64', '#4e342e']][Math.floor(Math.random() * 4)];
-      this.visitors.push({ x: -5, y: 6.9 + Math.random() * 0.3, tx: (st.fixed?.board?.gx ?? 1) + 2.6, ty: 6.9, phase: 'in', wait: 0, dir: 1, walk: 0, look });
+      const li = 1 + Math.floor(Math.random() * 4);
+      const look = [null, ['#e53935', '#3949ab', '#6d4c41'], ['#43a047', '#5d4037', '#212121'], ['#8e24aa', '#00897b', '#f9a825'], ['#fb8c00', '#455a64', '#4e342e']][li];
+      this.visitors.push({ li, x: -5, y: 6.9 + Math.random() * 0.3, tx: (st.fixed?.board?.gx ?? 1) + 2.6, ty: 6.9, phase: 'in', wait: 0, dir: 1, walk: 0, look });
     }
     this.visitors = this.visitors.filter(v => {
       if(v.phase === 'in' && move(v, v.tx, v.ty, 1.4)){ v.phase = 'read'; v.wait = 3 + Math.random() * 2; }
@@ -134,9 +135,9 @@ const Life = {
     const T = TILE;
     const f = this.farmer, g = this.dog;
     if(!f) return;
-    add((f.x + f.y) * T, () => this.person(getC(), Art.P(f.x * T, f.y * T), f, time, ['#e53935', '#3f6fd8', '#6d4c41'], true));
+    add((f.x + f.y) * T, () => this.person(getC(), Art.P(f.x * T, f.y * T), f, time, ['#e53935', '#3f6fd8', '#6d4c41'], true, 0));
     add((g.x + g.y) * T, () => this.dogDraw(getC(), Art.P(g.x * T, g.y * T), g, time));
-    this.visitors.forEach(v => add((v.x + v.y) * T, () => this.person(getC(), Art.P(v.x * T, v.y * T), v, time, v.look, false)));
+    this.visitors.forEach(v => add((v.x + v.y) * T, () => this.person(getC(), Art.P(v.x * T, v.y * T), v, time, v.look, false, v.li || 1)));
   },
 
   /* ---------- свет ночью ---------- */
