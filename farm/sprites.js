@@ -2,7 +2,7 @@
 // и отрендерены с мягким светом и тенью (папка sprites). Пока картинка грузится — рисуется старый вариант.
 'use strict';
 
-const SPRITES_V = 3;
+const SPRITES_V = 4;
 const Sprites = {
   man: null, imgs: {},
   init(){
@@ -18,7 +18,7 @@ const Sprites = {
   // Рисует спрайт так, чтобы его «якорь» (центр основания) попал в точку x,y экрана игры.
   draw(ctx, name, x, y, scale = 1, flip = false){
     const im = this.get(name); if(!im) return false;
-    const m = this.man[name], s = 0.5 * scale;
+    const m = this.man[name], s = scale / (m.res || 2);
     if(flip){ ctx.save(); ctx.translate(x, y); ctx.scale(-1, 1); ctx.drawImage(im, -m.ax * s, -m.ay * s, m.w * s, m.h * s); ctx.restore(); }
     else ctx.drawImage(im, x - m.ax * s, y - m.ay * s, m.w * s, m.h * s);
     return true;

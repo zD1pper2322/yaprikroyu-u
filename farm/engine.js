@@ -30,7 +30,7 @@ const Engine = {
     requestAnimationFrame(t => this.frame(t));
   },
   resize(){
-    this.dpr = Math.min(3, window.devicePixelRatio || 1);   // чёткая картинка на телефонах с плотным экраном
+    this.dpr = Math.min(this.dprCap || 3, window.devicePixelRatio || 1);   // чёткая картинка на телефонах с плотным экраном
     const r = this.cv.getBoundingClientRect();
     this.W = r.width; this.H = r.height;
     this.cv.width = Math.round(this.W * this.dpr); this.cv.height = Math.round(this.H * this.dpr);
@@ -193,7 +193,11 @@ const Engine = {
 
   /* ---------- отрисовка ---------- */
   frame(t){
-    const dt = Math.min(0.05, (t - (this.last || t)) / 1000); this.last = t; this.dt = dt;
+    const raw = (t - (this.last || t)) / 1000;
+    const dt = Math.min(0.05, raw); this.last = t; this.dt = dt;
+    // если телефон не тянет чёткость 3×, плавно снижаем до 2× (картинка останется гладкой)
+    this.perf = this.perf ? this.perf * 0.97 + raw * 0.03 : raw;
+    if(!this.dprCap && this.perf > 0.045 && t > 4000 && this.dpr > 2){ this.dprCap = 2; this.resize(); }
     if(this.camTarget){
       this.cam.x += (this.camTarget.x - this.cam.x) * 0.15; this.cam.y += (this.camTarget.y - this.cam.y) * 0.15;
       if(Math.abs(this.camTarget.x - this.cam.x) < 1 && Math.abs(this.camTarget.y - this.cam.y) < 1) this.camTarget = null;

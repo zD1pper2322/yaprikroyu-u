@@ -5,7 +5,7 @@ import './factories.js';
 import './extras.js';
 
 const K = 67.88;          // пикселей на клетку по горизонтали в игре (1×)
-const SS = 4;             // рендерим в 4×, на выходе 2×
+const SS = 6;             // рендерим в 6×, на выходе 3× — чётко даже на плотных экранах
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -68,7 +68,7 @@ window.renderSprite = async function(name, args = {}){
   // якорь: центр основания модели
   const a = new THREE.Vector3(cx, 0, cz).project(cam);
   const ax = (a.x + 1) / 2 * size, ay = (1 - a.y) / 2 * size;
-  const OUT = 2 / SS, w = Math.round((x1 - x0 + 1) * OUT), h = Math.round((y1 - y0 + 1) * OUT);
+  const OUT = 3 / SS, w = Math.round((x1 - x0 + 1) * OUT), h = Math.round((y1 - y0 + 1) * OUT);
   const out = document.createElement('canvas'); out.width = w; out.height = h;
   const oc = out.getContext('2d'); oc.imageSmoothingEnabled = true; oc.imageSmoothingQuality = 'high';
   // уменьшаем в два шага — мягкие края без ступенек
@@ -78,8 +78,8 @@ window.renderSprite = async function(name, args = {}){
   scene.traverse(o => { if(o.geometry) o.geometry.dispose(); if(o.material) [].concat(o.material).forEach(m => m.dispose()); });
   // особые точки (труба для дыма и т.п.) — смещение от якоря в пикселях игры
   const pts = {};
-  for(const [k, v] of Object.entries(def.points || {})){ const q = new THREE.Vector3(...v).project(cam); pts[k] = [Math.round(((q.x + 1) / 2 * size - ax) * OUT * 5) / 10, Math.round(((1 - q.y) / 2 * size - ay) * OUT * 5) / 10]; }
-  return { url: out.toDataURL('image/webp', 0.9), w, h, ax: Math.round((ax - x0) * OUT * 10) / 10, ay: Math.round((ay - y0) * OUT * 10) / 10, pts };
+  for(const [k, v] of Object.entries(def.points || {})){ const q = new THREE.Vector3(...v).project(cam); pts[k] = [Math.round(((q.x + 1) / 2 * size - ax) * OUT / 3 * 10) / 10, Math.round(((1 - q.y) / 2 * size - ay) * OUT / 3 * 10) / 10]; }
+  return { url: out.toDataURL('image/webp', 0.88), res: 3, w, h, ax: Math.round((ax - x0) * OUT * 10) / 10, ay: Math.round((ay - y0) * OUT * 10) / 10, pts };
 };
 window.modelNames = () => Object.keys(MODELS);
 window.ready = true;

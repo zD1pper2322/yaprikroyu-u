@@ -12,8 +12,9 @@ const Art = {
 
   init(ctx){
     // Трава: сочная, с травинками, бликами и редкими цветочками.
-    const g = document.createElement('canvas'); g.width = g.height = 256;
-    const c = g.getContext('2d');
+    const Q = 4;   // текстуры в 4× — трава и земля чёткие на любом экране
+    const g = document.createElement('canvas'); g.width = g.height = 256 * Q;
+    const c = g.getContext('2d'); c.scale(Q, Q);
     c.fillStyle = '#86cc45'; c.fillRect(0, 0, 256, 256);
     const r = rnd(7);
     for(let i = 0; i < 30; i++){ c.fillStyle = r() < 0.5 ? '#92d652' : '#7bc23d'; c.beginPath(); c.ellipse(r() * 256, r() * 256, 14 + r() * 26, 8 + r() * 14, r() * 3, 0, 7); c.fill(); }
@@ -24,20 +25,20 @@ const Art = {
       c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + (r() - 0.5) * 3, y - h / 2, x + (r() - 0.5) * 4, y - h); c.stroke();
     }
     for(let i = 0; i < 18; i++){ c.fillStyle = ['#ffffff', '#ffe066', '#ff9ec4', '#b8a6ff'][i % 4]; const x = r() * 256, y = r() * 256; for(let k = 0; k < 4; k++){ c.beginPath(); c.arc(x + Math.cos(k * 1.57) * 1.8, y + Math.sin(k * 1.57) * 1.8, 1.5, 0, 7); c.fill(); } c.fillStyle = '#ffcc33'; c.beginPath(); c.arc(x, y, 1, 0, 7); c.fill(); }
-    this.grassPattern = ctx.createPattern(g, 'repeat');
+    this.grassPattern = ctx.createPattern(g, 'repeat'); this.grassPattern.setTransform(new DOMMatrix().scale(1 / Q));
     // Трава за пределами хутора — темнее, «ниже».
-    const g2 = document.createElement('canvas'); g2.width = g2.height = 128;
-    const c2 = g2.getContext('2d'); c2.fillStyle = '#5fa834'; c2.fillRect(0, 0, 128, 128);
+    const g2 = document.createElement('canvas'); g2.width = g2.height = 128 * Q;
+    const c2 = g2.getContext('2d'); c2.scale(Q, Q); c2.fillStyle = '#5fa834'; c2.fillRect(0, 0, 128, 128);
     const r3 = rnd(5);
     for(let i = 0; i < 300; i++){ const x = r3() * 128, y = r3() * 128; c2.strokeStyle = r3() < 0.5 ? '#52962b' : '#6cb83c'; c2.lineWidth = 1.4; c2.beginPath(); c2.moveTo(x, y); c2.lineTo(x + (r3() - 0.5) * 3, y - 3 - r3() * 5); c2.stroke(); }
-    this.outerPattern = ctx.createPattern(g2, 'repeat');
+    this.outerPattern = ctx.createPattern(g2, 'repeat'); this.outerPattern.setTransform(new DOMMatrix().scale(1 / Q));
     // Земля грядок: рыхлая, тёплая.
-    const so = document.createElement('canvas'); so.width = so.height = 64;
-    const sc = so.getContext('2d');
+    const so = document.createElement('canvas'); so.width = so.height = 64 * Q;
+    const sc = so.getContext('2d'); sc.scale(Q, Q);
     sc.fillStyle = '#a5672f'; sc.fillRect(0, 0, 64, 64);
     const r2 = rnd(3);
     for(let i = 0; i < 90; i++){ sc.fillStyle = ['#8f5526', '#b8773d', '#9a5d2a', '#c58a4c'][i % 4]; sc.beginPath(); sc.arc(r2() * 64, r2() * 64, 1 + r2() * 1.8, 0, 7); sc.fill(); }
-    this.soilPattern = ctx.createPattern(so, 'repeat');
+    this.soilPattern = ctx.createPattern(so, 'repeat'); this.soilPattern.setTransform(new DOMMatrix().scale(1 / Q));
   },
 
   /* ---------- изометрия ----------

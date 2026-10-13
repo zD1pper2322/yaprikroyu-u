@@ -9,6 +9,6 @@ const manPath=OUT+'/sprites.json';const man=fs.existsSync(manPath)?JSON.parse(fs
 for(const n of names){const t0=Date.now();
   try{const r=await p.evaluate(n=>renderSprite(n),n);
     fs.writeFileSync(`${OUT}/${n}.webp`,Buffer.from(r.url.split(',')[1],'base64'));
-    man[n]={w:r.w,h:r.h,ax:r.ax,ay:r.ay};if(Object.keys(r.pts||{}).length)man[n].pts=r.pts;console.log(n,r.w+'x'+r.h,'anchor',r.ax,r.ay,(Date.now()-t0)+'ms',Math.round(fs.statSync(`${OUT}/${n}.webp`).size/1024)+'KB');
+    man[n]={w:r.w,h:r.h,ax:r.ax,ay:r.ay,res:r.res||2};if(Object.keys(r.pts||{}).length)man[n].pts=r.pts;console.log(n,r.w+'x'+r.h,'anchor',r.ax,r.ay,(Date.now()-t0)+'ms',Math.round(fs.statSync(`${OUT}/${n}.webp`).size/1024)+'KB');
   }catch(e){console.log('FAIL',n,e.message.slice(0,200));}}
 fs.writeFileSync(manPath,JSON.stringify(man));await b.close();})();
