@@ -1,5 +1,5 @@
 // «Хуторок»: офлайн-кэш файлов игры. Запросы к базе идут мимо кэша.
-const CACHE = 'hutorok-v11';
+const CACHE = 'hutorok-v12';
 const FILES = ['./', 'index.html', 'data.js', 'art.js', 'machines.js', 'game.js', 'engine.js', 'net.js', 'extra.js', 'social.js', 'hood.js', 'admin.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });

@@ -635,7 +635,7 @@ function openSettings(){
       else S.notify = false;
       save();
     };
-    sh.querySelector('#adminBtn')?.addEventListener('click', openAdmin);
+    sh.querySelector('#adminBtn')?.addEventListener('click', () => openAdmin(true));
     sh.querySelector('#tutAgain').onclick = () => { S.tut = 0; save(); closeSheet(); Tut.show(); };
     sh.querySelector('#logoutBtn').onclick = async () => { await Net.pushState(); localStorage.removeItem(SAVE_KEY); location.reload(); };
   });
