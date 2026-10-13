@@ -175,6 +175,51 @@ const Art = {
     const s = this.up(this.P(x + W / 2, y + H), h + 18);
     this.sign(ctx, s.x, s.y, '📦');
   },
+  // вода и причал за задним забором (плоско, в координатах земли)
+  waterFlat(ctx, time){
+    const T = TILE;
+    ctx.fillStyle = '#d9c38c'; ctx.beginPath(); ctx.roundRect(-7 * T, -7 * T, 6.9 * T, 12.6 * T, 40); ctx.fill();
+    ctx.fillStyle = '#3d94c9'; ctx.beginPath(); ctx.roundRect(-7.5 * T, -7.5 * T, 6.9 * T, 12.6 * T, 40); ctx.fill();
+    ctx.fillStyle = '#5bb0e0'; ctx.beginPath(); ctx.roundRect(-7.2 * T, -7.2 * T, 6.2 * T, 12 * T, 34); ctx.fill();
+    ctx.strokeStyle = '#ffffff70'; ctx.lineWidth = 3;
+    for(let i = 0; i < 7; i++){ const wx = -6.4 * T + (i % 3) * 1.9 * T, wy = -5.8 * T + i * 1.5 * T + Math.sin(time + i) * 6; ctx.beginPath(); ctx.moveTo(wx, wy); ctx.quadraticCurveTo(wx + 14, wy - 8, wx + 28, wy); ctx.stroke(); }
+    // причал
+    ctx.fillStyle = '#7a4a22'; ctx.fillRect(-2.5 * T, 1.55 * T, 2.6 * T, 1.3 * T);
+    ctx.fillStyle = '#b07a45';
+    for(let i = 0; i < 9; i++) ctx.fillRect(-2.45 * T + i * 0.29 * T, 1.6 * T, 0.25 * T, 1.2 * T);
+  },
+  boat(ctx, x, y, time, crates){
+    const bob = Math.sin(time * 1.6) * 2.5;
+    ctx.save(); ctx.translate(x, y + bob);
+    ctx.fillStyle = '#00000022'; ctx.beginPath(); ctx.ellipse(0, 10, 80, 16, 0, 0, 7); ctx.fill();
+    // корпус
+    ctx.fillStyle = '#8c3b2a'; ctx.beginPath(); ctx.moveTo(-78, -14); ctx.lineTo(78, -14); ctx.lineTo(58, 12); ctx.lineTo(-62, 12); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#f2ead8'; ctx.fillRect(-74, -18, 148, 6);
+    ctx.fillStyle = '#5d2a1e'; ctx.fillRect(-60, 2, 116, 4);
+    // мачта и парус
+    ctx.fillStyle = '#6b4220'; ctx.fillRect(-3, -110, 6, 96);
+    ctx.fillStyle = '#fffdf6'; ctx.beginPath(); ctx.moveTo(4, -104); ctx.quadraticCurveTo(52 + Math.sin(time) * 4, -64, 4, -26); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#f1efe6'; ctx.beginPath(); ctx.moveTo(-4, -96); ctx.quadraticCurveTo(-40, -62, -4, -30); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#e5533d'; ctx.beginPath(); ctx.moveTo(3, -110); ctx.lineTo(24, -104); ctx.lineTo(3, -98); ctx.fill();
+    // ящики
+    (crates || []).forEach((c, i) => {
+      const cx = -58 + i * 42;
+      ctx.fillStyle = c.done ? '#c98f4f' : '#e6c89a'; ctx.fillRect(cx, -40, 30, 24);
+      ctx.strokeStyle = '#7a4a22'; ctx.lineWidth = 2; ctx.strokeRect(cx, -40, 30, 24);
+      if(c.done){ ctx.beginPath(); ctx.moveTo(cx, -40); ctx.lineTo(cx + 30, -16); ctx.moveTo(cx + 30, -40); ctx.lineTo(cx, -16); ctx.stroke(); }
+    });
+    ctx.restore();
+  },
+  chest(ctx, x, y, time){
+    const q = this.P(x, y), j = Math.max(0, Math.sin(time * 2.2)) ** 8 * 6;
+    ctx.save(); ctx.translate(q.x, q.y - j); ctx.scale(1.5, 1.5);
+    ctx.fillStyle = '#00000030'; ctx.beginPath(); ctx.ellipse(0, j + 2, 22, 8, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#8a5a2b'; ctx.fillRect(-18, -22, 36, 22);
+    ctx.fillStyle = '#a86d34'; ctx.beginPath(); ctx.moveTo(-19, -22); ctx.quadraticCurveTo(0, -40, 19, -22); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#f4c542'; ctx.fillRect(-19, -24, 38, 4); ctx.fillRect(-12, -24, 4, 24); ctx.fillRect(8, -24, 4, 24); ctx.fillRect(-4, -18, 8, 9);
+    ctx.fillStyle = `rgba(255,248,200,${0.5 + 0.5 * Math.sin(time * 4)})`; this.star(ctx, 16, -36, 6); this.star(ctx, -20, -30, 4);
+    ctx.restore();
+  },
   shelter(ctx, x, y, W, H, B){
     this.box(ctx, x, y, W, H, 40, B.wall, B.roof, { roofH: 30 });
     this.faceY(ctx, x, y, W, H, W / 2 - 13, W / 2 + 13, 0, 28, '#5a3820');

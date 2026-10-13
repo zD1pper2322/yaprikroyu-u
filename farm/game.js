@@ -59,7 +59,7 @@ function migrate(st){
   });
   st.decor = st.decor.filter(d => d.gx !== undefined);
   st.v = 3;
-  return st;
+  return migrateExtra(st);
 }
 
 /* ---------- занятость клеток ---------- */
@@ -141,9 +141,10 @@ function gainXp(n){
       ...Object.keys(DECOR).filter(k => DECOR[k].lvl === S.lvl).map(k => DECOR[k].e + ' ' + DECOR[k].n),
     ];
     S.coins += 20 * S.lvl;
+    const lg = S.lvl % 5 === 0 ? 3 : 1; addGems(lg);
     Sound.play('level'); buzz([30, 40, 60]);
     { const c = Engine.toWorld(window.innerWidth / 2, window.innerHeight / 2); Engine.burst(c.x, c.y, 'confetti', { n: 60, lift: 60 }); }
-    showSheet(`🎉 Уровень ${S.lvl}!`, `<p class="big">Награда: 🪙 ${20 * S.lvl}</p>${opened.length ? `<p>Открыто:</p><div class="chips">${opened.map(o => `<span class="chip">${o}</span>`).join('')}</div>` : ''}<p class="hint">Новые постройки — в 🛒 Магазине.</p><button class="btn primary" data-close>Отлично</button>`);
+    showSheet(`🎉 Уровень ${S.lvl}!`, `<p class="big">Награда: 🪙 ${20 * S.lvl} и 💎 ${lg}</p>${opened.length ? `<p>Открыто:</p><div class="chips">${opened.map(o => `<span class="chip">${o}</span>`).join('')}</div>` : ''}<p class="hint">Новые постройки — в 🛒 Магазине.</p><button class="btn primary" data-close>Отлично</button>`);
     fillOrders();
   }
 }
@@ -166,7 +167,7 @@ function plant(i, crop){
   p.crop = crop; p.start = now(); delete p.helpedBy;
   Engine.burst((p.gx + 1) * TILE, (p.gy + 1) * TILE, 'dust', { n: 6, lift: 0 });
   Sound.play('plant');
-  Tut.on('plant');
+  Tut.on('plant'); Daily.on('plant');
   return true;
 }
 function harvest(i){
@@ -180,7 +181,7 @@ function harvest(i){
   Engine.flyFromWorld(ITEMS[crop].e + '×2', p.gx * TILE + TILE, p.gy * TILE + TILE / 2, 'store');
   Engine.burst((p.gx + 1) * TILE, (p.gy + 1) * TILE, 'crop', { n: 12, colors: CROP_COLORS[crop], lift: 20 });
   Sound.play('harvest'); buzz(8);
-  Tut.on('harvest');
+  Tut.on('harvest'); Daily.on('harvest', crop, 2);
   return true;
 }
 function buyPlot(){
@@ -219,7 +220,7 @@ function collectAnimals(hk){
   S.buildings[hk].animals.forEach((a, i) => {
     if(animalState(a, B.animal).s !== 'ready') return;
     if(spaceLeft() < 1) return;
-    add(A.makes, 1); gainXp(ITEMS[A.makes].xp); a.start = 0; got++;
+    add(A.makes, 1); gainXp(ITEMS[A.makes].xp); a.start = 0; got++; Daily.on('animal', A.makes, 1);
     const pos = Engine.animalPos(hk, i);
     if(pos){ Engine.flyFromWorld(ITEMS[A.makes].e, pos.x, pos.y - 20, 'store'); Engine.burst(pos.x, pos.y, 'spark', { n: 8, lift: 30 }); }
   });
@@ -258,7 +259,7 @@ function queueEnd(q){ return q.length ? q[q.length - 1].end : 0; }
 function produce(bk, item){
   const R = RECIPES[item];
   const q = S.buildings[bk].queue;
-  if(q.length >= FACTORY_QUEUE) return toast('Очередь заполнена — заберите готовое');
+  if(q.length >= qSize(bk)) return toast('Очередь заполнена — заберите готовое или добавьте ячейку');
   if(!canPay(R.in)) return toast('Не хватает: ' + Object.entries(R.in).filter(([k, n]) => have(k) < n).map(([k, n]) => `${ITEMS[k].e}×${n - have(k)}`).join(' '));
   pay(R.in);
   const start = Math.max(now(), queueEnd(q));
@@ -275,7 +276,7 @@ function collectFactory(bk){
   while(q.length && q[0].end <= now()){
     const it = q[0].item, n = RECIPES[it].out;
     if(spaceLeft() < n){ toast('📦 Амбар полон'); break; }
-    add(it, n); gainXp(ITEMS[it].xp * n); q.shift(); got++;
+    add(it, n); gainXp(ITEMS[it].xp * n); q.shift(); got++; Daily.on('produce', it, n);
     Engine.flyFromWorld(ITEMS[it].e + (n > 1 ? '×' + n : ''), (B.gx + 1.5) * TILE, B.gy * TILE, 'store');
   }
   if(got){ Engine.burst((B.gx + 1.5) * TILE, (B.gy + 1.5) * TILE, 'spark', { n: 14, lift: 90 }); Engine.pulse('building:' + bk); Sound.play('pop'); buzz(15); save(); }
@@ -325,7 +326,7 @@ function completeOrder(i){
   S.truck = { coins: o.coins, xp: o.xp, back: now() + TRUCK_TIME * 1000 };
   S.orders[i] = null; S.orderCooldown[i] = now() + 20 * 1000;
   Sound.play('truck');
-  Tut.on('order');
+  Tut.on('order'); Daily.on('order');
   save(); closeSheet();
   toast(`🚚 Грузовик повёз заказ. Через ${TRUCK_TIME} секунд привезёт 🪙 ${o.coins}`);
 }
@@ -420,6 +421,7 @@ function renderHud(){
   $('#hudXp').style.width = Math.min(100, S.xp / need * 100) + '%';
   $('#hudXpText').textContent = `${S.xp}/${need}`;
   $('#hudCoins').textContent = S.coins;
+  $('#hudGems').textContent = S.gems || 0;
   $('#hudStore').textContent = `${stored()}/${S.cap}`;
   $('#hudNick').textContent = S.nick;
   const canOrder = (S.orders || []).some(o => o && canPay(o.items)) || truckState() === 'back';
@@ -437,7 +439,9 @@ function openFactory(bk){
     const pct = running ? 1 - left / RECIPES[j.item].time : (left <= 0 ? 1 : 0);
     return `<div class="job ${left <= 0 ? 'done' : running ? 'run' : 'wait'}"><span>${ITEMS[j.item].e}${RECIPES[j.item].out > 1 ? '×' + RECIPES[j.item].out : ''}</span>
       <small>${left <= 0 ? 'готово' : running ? fmtTime(left) : 'в очереди'}</small><span class="bar"><i style="width:${pct * 100}%"></i></span></div>`;
-  }).join('') + Array.from({ length: FACTORY_QUEUE - q.length }, () => '<div class="job empty">свободно</div>').join('');
+  }).join('') + Array.from({ length: Math.max(0, qSize(bk) - q.length) }, () => '<div class="job empty">свободно</div>').join('')
+    + (qSize(bk) < MAX_QUEUE ? `<button class="job add" id="fSlot">➕<small>ячейка<br>💎 ${slotCost(bk)}</small></button>` : '');
+  const run = factoryRun(bk);
   const menu = recipes.map(r => {
     const R = RECIPES[r], ok = unlocked(r), enough = canPay(R.in);
     return `<button class="recipe ${ok ? '' : 'lock'} ${enough ? 'ok' : ''}" ${ok ? `data-make="${r}"` : 'disabled'}>
@@ -447,9 +451,12 @@ function openFactory(bk){
   }).join('');
   showSheet(`${B.e} ${B.n}`, `<div class="queue">${queue}</div>
     ${doneN ? `<button class="btn primary" id="fCollect">Забрать готовое (${doneN})</button>` : ''}
+    ${run ? `<button class="btn" id="fSpeed">⚡ Доделать ${ITEMS[run.item].e} сейчас за 💎 ${gemCost((run.end - now()) / 1000)}</button>` : ''}
     <div class="recipes">${menu}</div>`, sh => {
     sh.querySelectorAll('[data-make]').forEach(b => b.onclick = () => produce(bk, b.dataset.make));
     sh.querySelector('#fCollect')?.addEventListener('click', () => { collectFactory(bk); openFactory(bk); });
+    sh.querySelector('#fSpeed')?.addEventListener('click', () => { speedFactory(bk); openFactory(bk); });
+    sh.querySelector('#fSlot')?.addEventListener('click', () => addSlot(bk));
   }, null, 'factory:' + bk);
 }
 function openPen(hk){
@@ -459,14 +466,16 @@ function openPen(hk){
   showSheet(`${B.e} ${B.n}`, `<p>${A.e} ${A.n}: ${bs.animals.length} из ${B.slots}. Голодных: ${hungry}.</p>
     <p class="hint">Корм: ${ITEMS[A.feed].e} ${ITEMS[A.feed].n} — есть ${have(A.feed)}. Делается на кормовом заводе.</p>
     <p class="hint">На ферме: нажмите на загон и проведите кормом по животным. Когда над ними появится ${ITEMS[A.makes].e} — нажмите, чтобы собрать.</p>
+    ${animalsLeft(hk) ? `<button class="btn" id="bSp">⚡ Накормить мгновенно за 💎 ${gemCost(animalsLeft(hk))}</button>` : ''}
     ${canMore ? `<button class="btn primary" id="bA">Купить ${A.e} за 🪙 ${A.cost * (bs.animals.length + 1)}</button>` : '<p class="hint">Загон заполнен.</p>'}`, sh => {
     sh.querySelector('#bA')?.addEventListener('click', () => { buyAnimal(hk); openPen(hk); });
+    sh.querySelector('#bSp')?.addEventListener('click', () => { speedAnimals(hk); openPen(hk); });
   });
 }
 function openOrders(){
   fillOrders();
   const ts = truckState();
-  const truckLine = ts === 'away' ? `<div class="truck-line">🚚 В пути — вернётся через ${fmtTime((S.truck.back - now()) / 1000)} с 🪙 ${S.truck.coins}</div>`
+  const truckLine = ts === 'away' ? `<div class="truck-line">🚚 В пути — вернётся через ${fmtTime((S.truck.back - now()) / 1000)} с 🪙 ${S.truck.coins} <button class="btn sm" id="tSpeed">⚡ 💎 ${gemCost((S.truck.back - now()) / 1000)}</button></div>`
     : ts === 'back' ? `<button class="btn primary" id="tGet">🚚 Забрать 🪙 ${S.truck.coins} у грузовика</button>` : '';
   const cards = S.orders.map((o, i) => {
     if(!o){
@@ -483,6 +492,7 @@ function openOrders(){
     sh.querySelectorAll('[data-done]').forEach(b => b.onclick = () => completeOrder(+b.dataset.done));
     sh.querySelectorAll('[data-skip]').forEach(b => b.onclick = () => skipOrder(+b.dataset.skip));
     sh.querySelector('#tGet')?.addEventListener('click', () => { collectTruck(); openOrders(); });
+    sh.querySelector('#tSpeed')?.addEventListener('click', () => { speedTruck(); openOrders(); });
   }, null, 'orders');
 }
 function openStorage(){
@@ -688,6 +698,7 @@ function startGame(state){
   Engine.start();
   renderHud(); Tut.show();
   save();
+  Daily.check(); Daily.dot(); Boat.tick();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -695,6 +706,8 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btnOrders').onclick = openOrders;
   $('#btnFriends').onclick = () => Net.openFriends();
   $('#btnSettings').onclick = openSettings;
+  $('#btnDaily').onclick = openDaily;
+  $('#hudGemsBtn').onclick = () => toast(`💎 Кристаллы: ${S.gems || 0}. Ускоряют грядки, заводы, животных и грузовик. Даются за уровни, задания дня, корабль и сундуки`);
   $('#hudStoreBtn').onclick = openStorage;
   $('#sheetClose').onclick = closeSheet;
   $('#sheet').onclick = e => { if(e.target.id === 'sheet') closeSheet(); };
@@ -710,5 +723,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if(a && /INPUT|TEXTAREA|SELECT/.test(a.tagName)) return;
     if(sheetKind === 'orders') openOrders();
     else if(sheetKind && sheetKind.startsWith('factory:')) openFactory(sheetKind.slice(8));
+    else if(sheetKind === 'boat') openBoat();
   }, 1000);
 });

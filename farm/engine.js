@@ -43,7 +43,7 @@ const Engine = {
   clamp(){
     // границы ромба карты в экранном (изометрическом) пространстве
     const z = this.cam.z, pad = 200;
-    const minX = -MAP_H * TILE - pad, maxX = MAP_W * TILE + pad, minY = -pad - 120, maxY = (MAP_W + MAP_H) * TILE / 2 + pad;
+    const minX = -MAP_H * TILE - pad, maxX = MAP_W * TILE + pad, minY = -pad - 260, maxY = (MAP_W + MAP_H) * TILE / 2 + pad;
     const vw = this.W / z, vh = this.H / z;
     this.cam.x = vw > maxX - minX ? (minX + maxX - vw) / 2 : Math.max(minX, Math.min(maxX - vw, this.cam.x));
     this.cam.y = vh > maxY - minY ? (minY + maxY - vh) / 2 : Math.max(minY, Math.min(maxY - vh, this.cam.y));
@@ -143,6 +143,7 @@ const Engine = {
     // 1) земля и всё плоское — в плоских координатах через матрицу изометрии
     c.save(); c.transform(1, 0.5, -1, 0.5, 0, 0);
     Art.groundFlat(c);
+    Art.waterFlat(c, time);
     for(const o of objs){
       const x = o.gx * T, y = o.gy * T, w = o.w * T, h = o.h * T;
       if(o.type === 'plot'){
@@ -162,6 +163,8 @@ const Engine = {
     c.restore();
     // 2) задний забор хутора
     const W = MAP_W * T, H = MAP_H * T;
+    const bp = Boat.pos(st);
+    if(bp){ const q = Art.P(bp.x, bp.y); Art.boat(c, q.x, q.y, time, bp.docked ? st.boat.crates : []); }
     Art.fenceLine(c, 0, 0, W, 0); Art.fenceLine(c, 0, 0, 0, H, [5.8 * T, 8.2 * T]);
     // 3) вертикальные объекты по глубине (дальше — раньше)
     const items = [], overlays = [];
@@ -220,6 +223,13 @@ const Engine = {
       } else if(o.type === 'decor'){
         add(depth, () => this.squash(o.key, Art.P(x + w / 2, y + h), time, () => Art.decorUp(c, o.kind, x, y, w, h, time)));
       }
+    }
+    // сундук
+    if(st.chest){ const ch = st.chest; add((ch.gx + ch.gy + 1) * T, () => Art.chest(c, (ch.gx + 0.5) * T, (ch.gy + 0.5) * T, time)); }
+    // значок над кораблём
+    if(bp && bp.docked && !this.visit){
+      const can = st.boat.crates.some(cr => !cr.done && have(cr.item) >= cr.n), q = Art.P(bp.x, bp.y);
+      overlays.push(() => Art.bubble(c, q.x + 40, q.y - 130, can ? '📦' : '⛵', { r: can ? 17 : 13, bg: can ? '#fffdf6' : '#ffffffcc' }));
     }
     // грузовик
     const tp = this.truckPos();
@@ -380,6 +390,10 @@ const Engine = {
     // грузовик
     const tp = this.truckPos();
     if(tp && truckState() === 'back'){ const a = Art.P(tp.x, tp.y), b2 = Art.P(w.x, w.y); if(Math.hypot(a.x - b2.x, a.y - 30 - b2.y) < 70){ collectTruck(); return; } }
+    // сундук и корабль
+    if(S.chest && w.x >= (S.chest.gx - 0.3) * TILE && w.x < (S.chest.gx + 1.3) * TILE && w.y >= (S.chest.gy - 0.3) * TILE && w.y < (S.chest.gy + 1.3) * TILE){ Chest.open(); return; }
+    { const bp = Boat.pos(); const a = bp && Art.P(bp.x, bp.y), b2 = Art.P(w.x, w.y);
+      if((a && Math.hypot(a.x - b2.x, a.y - 50 - b2.y) < 85) || (w.x < -0.3 * TILE && w.x > -7.5 * TILE && w.y > -7.5 * TILE && w.y < 5.2 * TILE)){ Sound.play('tap'); openBoat(); return; } }
     if(!obj) return;
     Sound.play('tap');
     if(obj.type !== 'plot') this.pulse(obj.key);
@@ -388,7 +402,8 @@ const Engine = {
         const p = S.plots[obj.idx], ps = plotState(p);
         if(ps.s === 'empty') Radial.seeds(e.clientX, e.clientY, obj.idx);
         else if(ps.s === 'ready') Radial.sickle(e.clientX, e.clientY, obj.idx);
-        else this.tip(e.clientX, e.clientY, `${ITEMS[p.crop].e} ${ITEMS[p.crop].n} · ещё ${fmtTime(ps.left)}${p.helpedBy ? ` · 💧 полил ${p.helpedBy}` : ''}`);
+        else this.tip(e.clientX, e.clientY, `${ITEMS[p.crop].e} ${ITEMS[p.crop].n} · ещё ${fmtTime(ps.left)}${p.helpedBy ? ` · 💧 полил ${p.helpedBy}` : ''}`,
+          { label: `⚡ 💎${gemCost(ps.left)}`, on: () => speedPlot(obj.idx) });
         break;
       }
       case 'house': {
@@ -408,11 +423,13 @@ const Engine = {
       case 'decor': this.tip(e.clientX, e.clientY, `${DECOR[obj.kind].e} ${DECOR[obj.kind].n} · зажмите, чтобы переставить`); break;
     }
   },
-  tip(sx, sy, text){
+  tip(sx, sy, text, btn){
     const t = $('#tip'); t.textContent = text; t.hidden = false;
+    t.classList.toggle('act', !!btn);
+    if(btn){ const b = document.createElement('button'); b.textContent = btn.label; b.onclick = ev => { ev.stopPropagation(); t.hidden = true; btn.on(); }; t.appendChild(b); }
     t.style.left = Math.max(10, Math.min(window.innerWidth - 10 - t.offsetWidth, sx - t.offsetWidth / 2)) + 'px';
     t.style.top = Math.max(70, sy - 60) + 'px';
-    clearTimeout(t._h); t._h = setTimeout(() => t.hidden = true, 2200);
+    clearTimeout(t._h); t._h = setTimeout(() => t.hidden = true, btn ? 3500 : 2200);
   },
 
   /* ---------- инструменты (протягивание) ---------- */

@@ -138,8 +138,8 @@ button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 .app{position:fixed;inset:0}
 #map{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block;background:#5f9e3c}
 .hud{position:absolute;left:0;right:0;top:0;z-index:5;padding-top:calc(10px + env(safe-area-inset-top,0px));background:linear-gradient(#8fd3f4ee,#8fd3f400);border-bottom:0}
-.dock{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(12px + env(safe-area-inset-bottom,0px));display:flex;gap:10px;z-index:5}
-.dock button{position:relative;width:64px;height:64px;border-radius:20px;background:var(--wood);border:3px solid var(--wood-d);box-shadow:0 4px 0 var(--soil-d);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--ink-2)}
+.dock{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(12px + env(safe-area-inset-bottom,0px));display:flex;gap:7px;z-index:5}
+.dock button{position:relative;width:60px;height:62px;border-radius:20px;background:var(--wood);border:3px solid var(--wood-d);box-shadow:0 4px 0 var(--soil-d);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--ink-2)}
 .dock button span{font-size:26px;line-height:1}
 .dock button:active{transform:translateY(2px);box-shadow:0 2px 0 var(--soil-d)}
 .dot{position:absolute;top:-4px;right:-4px;width:14px;height:14px;border-radius:50%;background:var(--red);border:2px solid var(--white)}
@@ -163,6 +163,24 @@ body.visiting .dock,body.visiting #tut{display:none}
 #btnAll:active{transform:translateY(2px);box-shadow:0 2px 0 #8a6408}
 @keyframes allPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
 body.visiting #btnAll{display:none}
+#hudGemsBtn{position:absolute;left:12px;top:calc(72px + env(safe-area-inset-top,0px));z-index:5;font-size:13px;padding:4px 10px;box-shadow:0 2px 0 var(--wood-d)}
+body.visiting #hudGemsBtn{display:none}
+#tip button{pointer-events:auto;margin-left:8px;padding:4px 10px;border-radius:10px;background:linear-gradient(#ffe066,#f4b400);border:2px solid #b8860b;font-weight:800;font-size:13px;color:#5a3d00}
+#tip.act{pointer-events:auto}
+.job.add{font-size:18px;border-style:dashed;border-color:var(--gold-d);background:#fff8dc}
+.task{background:var(--white);border:2px solid var(--wood-d);border-radius:14px;padding:10px;margin-bottom:8px;display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center}
+.task .tt{display:flex;justify-content:space-between;gap:8px;font-size:14px}.task .tt small{font-weight:800;color:var(--ink-2)}
+.task .bar{grid-column:1;height:8px;background:#00000014;border-radius:5px;overflow:hidden}.task .bar i{display:block;height:100%;background:var(--grass-d)}
+.task .btn,.task .tag{grid-column:2;grid-row:1/3}
+.task.claimed{opacity:.6}
+.task .rw{display:block;font-weight:600;font-size:11.5px;color:var(--ink-2)}
+.bonus{text-align:center;font-weight:800;background:#fff3c4;border:2px dashed var(--gold-d);border-radius:12px;padding:8px}.bonus.got{background:#e5f6d8;border-color:var(--grass-d)}
+.ldays{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin:10px 0}
+.lday{background:var(--white);border:2px solid var(--wood-d);border-radius:10px;padding:4px 2px;text-align:center;display:flex;flex-direction:column;font-size:12px}
+.lday small{font-size:9.5px;color:var(--ink-2)}.lday.past{opacity:.45}.lday.now{border-color:var(--gold-d);box-shadow:0 0 0 2px var(--gold);background:#fff3c4}
+.crates{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.crate{background:#f3dfb8;border:3px solid #a8743c;border-radius:12px;padding:8px 4px;display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center}
+.crate .ce{font-size:30px}.crate small{font-size:11px;color:var(--ink-2);min-height:26px}.crate.can{box-shadow:0 0 0 3px var(--gold)}.crate.done{background:#dff1cf;border-color:var(--grass-d)}
 #tut{position:absolute;left:12px;right:12px;bottom:calc(92px + env(safe-area-inset-bottom,0px));z-index:6;background:#fffdf6f0;border:3px solid var(--gold-d);border-radius:16px;padding:10px 40px 10px 12px;font-size:14px;font-weight:600;line-height:1.35;box-shadow:0 4px 12px #0003;max-width:520px;margin:0 auto}
 #tut button{position:absolute;right:8px;top:8px;width:26px;height:26px;border-radius:50%;background:var(--wood);font-size:13px}
 #hint{position:absolute;left:50%;top:calc(80px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:6;background:#2b2416dd;color:var(--white);padding:6px 12px;border-radius:10px;font-weight:700;font-size:13px}
@@ -226,10 +244,12 @@ body.visiting #btnAll{display:none}
   </header>
   <div id="tut" hidden><span></span><button aria-label="Скрыть подсказки">✕</button></div>
   <div id="hint" hidden></div>
+  <button class="pill" id="hudGemsBtn" title="Кристаллы">💎 <span id="hudGems">0</span></button>
   <button id="btnAll" hidden>✨ Собрать всё <b>0</b></button>
   <nav class="dock">
     <button id="btnShop"><span>🛒</span>Магазин</button>
     <button id="btnOrders"><span>📋</span>Заказы<i class="dot" id="ordersDot" hidden></i></button>
+    <button id="btnDaily"><span>🎯</span>Задания<i class="dot" id="dailyDot" hidden></i></button>
     <button id="btnFriends"><span>👋</span>Соседи</button>
     <button id="btnSettings"><span>⚙️</span>Ещё</button>
   </nav>
@@ -249,6 +269,7 @@ body.visiting #btnAll{display:none}
 <script src="data.js"></script>
 <script src="art.js"></script>
 <script src="game.js"></script>
+<script src="extra.js"></script>
 <script src="engine.js"></script>
 <script src="net.js"></script>
 </body>
