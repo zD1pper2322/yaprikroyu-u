@@ -11,24 +11,32 @@ const Art = {
   soilPattern: null,
 
   init(ctx){
-    // Трава: светлые и тёмные травинки на зелёном.
-    const g = document.createElement('canvas'); g.width = g.height = 192;
+    // Трава: сочная, с травинками, бликами и редкими цветочками.
+    const g = document.createElement('canvas'); g.width = g.height = 256;
     const c = g.getContext('2d');
-    c.fillStyle = '#7cc453'; c.fillRect(0, 0, 192, 192);
+    c.fillStyle = '#86cc45'; c.fillRect(0, 0, 256, 256);
     const r = rnd(7);
-    for(let i = 0; i < 520; i++){
-      const x = r() * 192, y = r() * 192, h = 3 + r() * 6;
-      c.strokeStyle = r() < 0.5 ? '#6ab443' : '#93d266';
-      c.lineWidth = 1.4;
-      c.beginPath(); c.moveTo(x, y); c.lineTo(x + (r() - 0.5) * 3, y - h); c.stroke();
+    for(let i = 0; i < 30; i++){ c.fillStyle = r() < 0.5 ? '#92d652' : '#7bc23d'; c.beginPath(); c.ellipse(r() * 256, r() * 256, 14 + r() * 26, 8 + r() * 14, r() * 3, 0, 7); c.fill(); }
+    for(let i = 0; i < 900; i++){
+      const x = r() * 256, y = r() * 256, h = 3 + r() * 7;
+      c.strokeStyle = ['#6fb534', '#9be05c', '#78bf3a', '#a9e86a'][i % 4];
+      c.lineWidth = 1.5;
+      c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + (r() - 0.5) * 3, y - h / 2, x + (r() - 0.5) * 4, y - h); c.stroke();
     }
-    for(let i = 0; i < 14; i++){ c.fillStyle = r() < 0.5 ? '#fff6' : '#ffe56a99'; c.beginPath(); c.arc(r() * 192, r() * 192, 1.6, 0, 7); c.fill(); }
+    for(let i = 0; i < 18; i++){ c.fillStyle = ['#ffffff', '#ffe066', '#ff9ec4', '#b8a6ff'][i % 4]; const x = r() * 256, y = r() * 256; for(let k = 0; k < 4; k++){ c.beginPath(); c.arc(x + Math.cos(k * 1.57) * 1.8, y + Math.sin(k * 1.57) * 1.8, 1.5, 0, 7); c.fill(); } c.fillStyle = '#ffcc33'; c.beginPath(); c.arc(x, y, 1, 0, 7); c.fill(); }
     this.grassPattern = ctx.createPattern(g, 'repeat');
+    // Трава за пределами хутора — темнее, «ниже».
+    const g2 = document.createElement('canvas'); g2.width = g2.height = 128;
+    const c2 = g2.getContext('2d'); c2.fillStyle = '#5fa834'; c2.fillRect(0, 0, 128, 128);
+    const r3 = rnd(5);
+    for(let i = 0; i < 300; i++){ const x = r3() * 128, y = r3() * 128; c2.strokeStyle = r3() < 0.5 ? '#52962b' : '#6cb83c'; c2.lineWidth = 1.4; c2.beginPath(); c2.moveTo(x, y); c2.lineTo(x + (r3() - 0.5) * 3, y - 3 - r3() * 5); c2.stroke(); }
+    this.outerPattern = ctx.createPattern(g2, 'repeat');
+    // Земля грядок: рыхлая, тёплая.
     const so = document.createElement('canvas'); so.width = so.height = 64;
     const sc = so.getContext('2d');
-    sc.fillStyle = '#9b6b3c'; sc.fillRect(0, 0, 64, 64);
+    sc.fillStyle = '#a5672f'; sc.fillRect(0, 0, 64, 64);
     const r2 = rnd(3);
-    for(let i = 0; i < 60; i++){ sc.fillStyle = r2() < 0.5 ? '#8a5c30' : '#ad7c4a'; sc.fillRect(r2() * 64, r2() * 64, 2, 2); }
+    for(let i = 0; i < 90; i++){ sc.fillStyle = ['#8f5526', '#b8773d', '#9a5d2a', '#c58a4c'][i % 4]; sc.beginPath(); sc.arc(r2() * 64, r2() * 64, 1 + r2() * 1.8, 0, 7); sc.fill(); }
     this.soilPattern = ctx.createPattern(so, 'repeat');
   },
 
@@ -37,11 +45,13 @@ const Art = {
      проецируется как ромб: X = x − y, Y = (x + y) / 2. */
   P(x, y){ return { x: x - y, y: (x + y) / 2 }; },
   up(p, h){ return { x: p.x, y: p.y - h }; },
-  poly(ctx, pts, fill, stroke){
+  poly(ctx, pts, fill, stroke, lw = 1.5){
     ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath();
     if(fill){ ctx.fillStyle = fill; ctx.fill(); }
-    if(stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke(); }
+    if(stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.lineJoin = 'round'; ctx.stroke(); }
   },
+  OL: 'rgba(60,32,12,.55)',
+  vgrad(ctx, yBottom, yTop, c0, c1){ const g = ctx.createLinearGradient(0, yBottom, 0, yTop); g.addColorStop(0, c0); g.addColorStop(1, c1); return g; },
   shade(hex, k){
     const n = parseInt(hex.slice(1), 16);
     const f = c => Math.max(0, Math.min(255, Math.round(c * k)));
@@ -51,26 +61,65 @@ const Art = {
   /* ---------- земля (рисуется в плоскости) ---------- */
   groundFlat(ctx){
     const W = MAP_W * TILE, H = MAP_H * TILE;
-    ctx.fillStyle = '#5c9a3a'; ctx.fillRect(-3000, -3000, W + 6000, H + 6000);
+    ctx.fillStyle = this.outerPattern; ctx.fillRect(-3000, -3000, W + 6000, H + 6000);
     ctx.fillStyle = this.grassPattern; ctx.fillRect(0, 0, W, H);
-    // тропинки-«проплешины» для живости
-    const r = rnd(11); ctx.fillStyle = '#8bcf5e66';
-    for(let i = 0; i < 18; i++){ ctx.beginPath(); ctx.ellipse(r() * W, r() * H, 30 + r() * 60, 18 + r() * 30, r() * 3, 0, 7); ctx.fill(); }
-    // дорога
-    ctx.fillStyle = '#d9b67a'; ctx.beginPath(); ctx.roundRect(-3000, 6 * TILE + 6, 3000 + 4 * TILE, 2 * TILE - 12, 12); ctx.fill();
-    ctx.fillStyle = '#c9a265'; for(let x = -2980; x < 4 * TILE; x += 70) ctx.fillRect(x, 7 * TILE - 2, 30, 4);
+    // «стрижка газона» — широкие светлые полосы, как на ухоженном хуторе
+    ctx.fillStyle = '#ffffff12';
+    for(let i = 0; i < MAP_W; i += 4) ctx.fillRect(i * TILE, 0, 2 * TILE, H);
+    // мягкие светлые пятна
+    const r = rnd(11); ctx.fillStyle = '#c8f08a33';
+    for(let i = 0; i < 26; i++){ ctx.beginPath(); ctx.ellipse(r() * W, r() * H, 40 + r() * 70, 24 + r() * 36, r() * 3, 0, 7); ctx.fill(); }
+    // дорога с обочиной и колеёй
+    ctx.fillStyle = '#b8935a'; ctx.beginPath(); ctx.roundRect(-3000, 6 * TILE + 2, 3000 + 4 * TILE + 4, 2 * TILE - 4, 14); ctx.fill();
+    ctx.fillStyle = '#e2c084'; ctx.beginPath(); ctx.roundRect(-3000, 6 * TILE + 7, 3000 + 4 * TILE, 2 * TILE - 14, 12); ctx.fill();
+    ctx.fillStyle = '#cfa96a'; ctx.fillRect(-3000, 6 * TILE + 20, 3000 + 4 * TILE - 8, 6); ctx.fillRect(-3000, 8 * TILE - 26, 3000 + 4 * TILE - 8, 6);
+    const r4 = rnd(9); ctx.fillStyle = '#a88a5a';
+    for(let i = 0; i < 40; i++){ ctx.beginPath(); ctx.arc(-1200 + r4() * (1200 + 4 * TILE), 6 * TILE + 10 + r4() * (2 * TILE - 20), 1.5 + r4() * 2, 0, 7); ctx.fill(); }
   },
-  plotFlat(ctx, x, y, size, ready, highlight){
-    const pad = 5;
-    ctx.fillStyle = '#5e3c1e'; ctx.beginPath(); ctx.roundRect(x + pad + 3, y + pad + 3, size - pad * 2, size - pad * 2, 14); ctx.fill();
-    ctx.fillStyle = this.soilPattern; ctx.beginPath(); ctx.roundRect(x + pad, y + pad, size - pad * 2, size - pad * 2, 14); ctx.fill();
-    ctx.strokeStyle = '#7d5128'; ctx.lineWidth = 4;
-    for(let i = 1; i < 4; i++){ const yy = y + pad + (size - pad * 2) * i / 4; ctx.beginPath(); ctx.moveTo(x + pad + 10, yy); ctx.lineTo(x + size - pad - 10, yy); ctx.stroke(); }
-    if(ready){ ctx.strokeStyle = '#ffd84a'; ctx.lineWidth = 4; ctx.beginPath(); ctx.roundRect(x + pad, y + pad, size - pad * 2, size - pad * 2, 14); ctx.stroke(); }
-    if(highlight){ ctx.strokeStyle = highlight; ctx.lineWidth = 5; ctx.beginPath(); ctx.roundRect(x + pad, y + pad, size - pad * 2, size - pad * 2, 14); ctx.stroke(); }
+  // Обрыв по переднему краю хутора — хутор стоит «на холме».
+  cliff(ctx){
+    const W = MAP_W * TILE, H = MAP_H * TILE, d = 46;
+    const A = this.P(0, H), B = this.P(W, H), C = this.P(W, 0);
+    const down = (p, k) => ({ x: p.x, y: p.y + k });
+    this.poly(ctx, [A, B, down(B, d), down(A, d)], this.vgrad(ctx, A.y, A.y + d, '#a86a35', '#7a4a22'));
+    this.poly(ctx, [B, C, down(C, d), down(B, d)], this.vgrad(ctx, C.y, C.y + d, '#8f5a2c', '#64391a'));
+    // слои породы
+    ctx.strokeStyle = '#00000022'; ctx.lineWidth = 2;
+    [16, 30].forEach(k => { ctx.beginPath(); ctx.moveTo(A.x, A.y + k); ctx.lineTo(B.x, B.y + k); ctx.lineTo(C.x, C.y + k); ctx.stroke(); });
+    const r = rnd(4); ctx.fillStyle = '#c4874a';
+    for(let i = 0; i < 60; i++){ const t = r(), side = r() < 0.5; const p = side ? { x: A.x + (B.x - A.x) * t, y: A.y + (B.y - A.y) * t } : { x: B.x + (C.x - B.x) * t, y: B.y + (C.y - B.y) * t }; ctx.beginPath(); ctx.ellipse(p.x, p.y + 10 + r() * 30, 4 + r() * 5, 2 + r() * 2, 0, 0, 7); ctx.fill(); }
+    // травяной край
+    ctx.strokeStyle = '#5fa834'; ctx.lineWidth = 7; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(A.x, A.y + 2); ctx.lineTo(B.x, B.y + 2); ctx.lineTo(C.x, C.y + 2); ctx.stroke();
+    ctx.strokeStyle = '#9be05c'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(A.x, A.y - 1); ctx.lineTo(B.x, B.y - 1); ctx.lineTo(C.x, C.y - 1); ctx.stroke();
+  },
+  plotFlat(ctx, x, y, size){
+    // тень грядки на траве
+    ctx.fillStyle = '#00000026'; ctx.beginPath(); ctx.roundRect(x + 7, y + 9, size - 8, size - 8, 14); ctx.fill();
+  },
+  // Грядка — приподнятая земляная клумба с бортиком.
+  plotBed(ctx, x, y, size, ready, highlight){
+    const pad = 5, h = 9, x0 = x + pad, y0 = y + pad, x1 = x + size - pad, y1 = y + size - pad;
+    const B = this.P(x1, y0), C = this.P(x1, y1), D = this.P(x0, y1);
+    this.poly(ctx, [D, C, this.up(C, h), this.up(D, h)], '#7a4520', this.OL);
+    this.poly(ctx, [C, B, this.up(B, h), this.up(C, h)], '#5e3418', this.OL);
+    ctx.save(); ctx.translate(0, -h); ctx.transform(1, 0.5, -1, 0.5, 0, 0);
+    ctx.fillStyle = this.soilPattern; ctx.beginPath(); ctx.roundRect(x0, y0, x1 - x0, y1 - y0, 6); ctx.fill();
+    // борозды
+    for(let i = 0; i < 4; i++){
+      const yy = y0 + 8 + i * (y1 - y0 - 16) / 3;
+      ctx.strokeStyle = '#7d4a20'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(x0 + 8, yy + 2); ctx.lineTo(x1 - 8, yy + 2); ctx.stroke();
+      ctx.strokeStyle = '#c48848'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x0 + 8, yy - 2); ctx.lineTo(x1 - 8, yy - 2); ctx.stroke();
+    }
+    ctx.strokeStyle = '#c79055'; ctx.lineWidth = 3; ctx.beginPath(); ctx.roundRect(x0 + 1.5, y0 + 1.5, x1 - x0 - 3, y1 - y0 - 3, 6); ctx.stroke();
+    if(ready){ ctx.strokeStyle = '#ffd84a'; ctx.lineWidth = 4; ctx.beginPath(); ctx.roundRect(x0, y0, x1 - x0, y1 - y0, 6); ctx.stroke(); }
+    if(highlight){ ctx.strokeStyle = highlight; ctx.lineWidth = 6; ctx.beginPath(); ctx.roundRect(x0, y0, x1 - x0, y1 - y0, 6); ctx.stroke(); }
+    ctx.restore();
   },
   shadowFlat(ctx, x, y, w, h){
-    ctx.fillStyle = '#00000026'; ctx.beginPath(); ctx.roundRect(x + 6, y + 10, w + 6, h + 4, 16); ctx.fill();
+    ctx.fillStyle = '#00000018'; ctx.beginPath(); ctx.roundRect(x + 2, y + 6, w + 18, h + 14, 22); ctx.fill();
+    ctx.fillStyle = '#00000022'; ctx.beginPath(); ctx.roundRect(x + 4, y + 8, w + 8, h + 6, 16); ctx.fill();
   },
   penFlat(ctx, x, y, w, h){
     ctx.fillStyle = '#c3d98a'; ctx.beginPath(); ctx.roundRect(x + 2, y + 2, w - 4, h - 4, 12); ctx.fill();
@@ -93,87 +142,193 @@ const Art = {
     for(let i = 0; i < n; i++){
       if(skip(pts[i]) || skip(pts[i + 1])) continue;
       const a = pts[i].p, b = pts[i + 1].p;
-      ctx.strokeStyle = '#7a4a22'; ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.moveTo(a.x, a.y - 8); ctx.lineTo(b.x, b.y - 8); ctx.moveTo(a.x, a.y - 18); ctx.lineTo(b.x, b.y - 18); ctx.stroke();
-      ctx.strokeStyle = '#b07a42'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(a.x, a.y - 9); ctx.lineTo(b.x, b.y - 9); ctx.moveTo(a.x, a.y - 19); ctx.lineTo(b.x, b.y - 19); ctx.stroke();
+      [10, 21].forEach(hh => {
+        ctx.strokeStyle = '#5c3416'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(a.x, a.y - hh); ctx.lineTo(b.x, b.y - hh); ctx.stroke();
+        ctx.strokeStyle = '#b8783c'; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.moveTo(a.x, a.y - hh - 0.5); ctx.lineTo(b.x, b.y - hh - 0.5); ctx.stroke();
+        ctx.strokeStyle = '#e0a868'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(a.x, a.y - hh - 1.8); ctx.lineTo(b.x, b.y - hh - 1.8); ctx.stroke();
+      });
     }
-    pts.forEach(o => { if(skip(o)) return; ctx.fillStyle = '#8b5a2b'; ctx.fillRect(o.p.x - 3, o.p.y - 26, 6, 26); ctx.fillStyle = '#a8743d'; ctx.fillRect(o.p.x - 3, o.p.y - 26, 3, 26); });
+    pts.forEach(o => {
+      if(skip(o)) return;
+      const x = o.p.x, y = o.p.y;
+      ctx.fillStyle = '#00000022'; ctx.beginPath(); ctx.ellipse(x + 2, y + 1, 6, 2.5, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = '#5c3416'; ctx.fillRect(x - 4.5, y - 30, 9, 30);
+      ctx.fillStyle = '#a86a32'; ctx.fillRect(x - 3, y - 29, 6, 28);
+      ctx.fillStyle = '#d29455'; ctx.fillRect(x - 3, y - 29, 2.5, 28);
+      ctx.fillStyle = '#5c3416'; ctx.beginPath(); ctx.moveTo(x - 4.5, y - 30); ctx.lineTo(x, y - 35); ctx.lineTo(x + 4.5, y - 30); ctx.fill();
+    });
   },
   // Дом-коробка: x,y,W,H — основание в плоских координатах, h — высота стен.
   box(ctx, x, y, W, H, h, wall, roof, opts = {}){
-    const P = (a, b) => this.P(a, b), up = (p, hh) => this.up(p, hh);
+    const P = (a, b) => this.P(a, b), up = (p, hh) => this.up(p, hh), OL = this.OL, sh = (c, k) => this.shade(c, k);
     const A = P(x, y), B = P(x + W, y), C = P(x + W, y + H), D = P(x, y + H);
-    const rh = opts.roofH ?? h * 0.7, ov = 6;
-    const wallL = wall, wallR = this.shade(wall, 0.82);
-    this.poly(ctx, [D, C, up(C, h), up(D, h)], wallL);
-    this.poly(ctx, [C, B, up(B, h), up(C, h)], wallR);
-    // основание стены — тёмная полоса
-    this.poly(ctx, [D, C, up(C, 8), up(D, 8)], this.shade(wall, 0.7));
-    this.poly(ctx, [C, B, up(B, 8), up(C, 8)], this.shade(wall, 0.6));
+    const rh = opts.roofH ?? h * 0.7, ov = 9;
+    const fh = opts.flat ? 0 : Math.min(9, h * 0.15);
+    // фундамент из камня
+    if(fh){
+      this.poly(ctx, [D, C, up(C, fh), up(D, fh)], '#b3aa9a', OL);
+      this.poly(ctx, [C, B, up(B, fh), up(C, fh)], '#8f8778', OL);
+      ctx.strokeStyle = '#00000022'; ctx.lineWidth = 1;
+      for(let t = 0.15; t < 1; t += 0.2){ const p1 = { x: D.x + (C.x - D.x) * t, y: D.y + (C.y - D.y) * t }; ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p1.x, p1.y - fh); ctx.stroke(); const p2 = { x: C.x + (B.x - C.x) * t, y: C.y + (B.y - C.y) * t }; ctx.beginPath(); ctx.moveTo(p2.x, p2.y); ctx.lineTo(p2.x, p2.y - fh); ctx.stroke(); }
+    }
+    // стены с объёмом: снизу темнее, сверху светлее
+    this.poly(ctx, [up(D, fh), up(C, fh), up(C, h), up(D, h)], this.vgrad(ctx, D.y - fh, D.y - h, sh(wall, 0.9), sh(wall, 1.08)), OL);
+    this.poly(ctx, [up(C, fh), up(B, fh), up(B, h), up(C, h)], this.vgrad(ctx, C.y - fh, C.y - h, sh(wall, 0.7), sh(wall, 0.84)), OL);
+    // доски
+    if(!opts.noPlanks){
+      ctx.strokeStyle = sh(wall, 0.8); ctx.globalAlpha = 0.45; ctx.lineWidth = 1.2;
+      for(let v = fh + 10; v < h - 4; v += 10){
+        ctx.beginPath(); ctx.moveTo(D.x, D.y - v); ctx.lineTo(C.x, C.y - v); ctx.lineTo(B.x, B.y - v); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+    // светлый угол
+    ctx.strokeStyle = sh(wall, 1.18); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(C.x, C.y - fh); ctx.lineTo(C.x, C.y - h + 2); ctx.stroke();
     if(opts.flat){
-      this.poly(ctx, [up(A, h), up(B, h), up(C, h), up(D, h)], roof);
+      this.poly(ctx, [up(A, h), up(B, h), up(C, h), up(D, h)], roof, OL);
       return { A, B, C, D, top: up(A, h) };
     }
+    // тень под свесом крыши
+    this.poly(ctx, [up(D, h - 8), up(C, h - 8), up(C, h), up(D, h)], '#00000030');
+    this.poly(ctx, [up(C, h - 8), up(B, h - 8), up(B, h), up(C, h)], '#00000038');
     // двускатная крыша, конёк вдоль x
     const R1 = up(P(x - ov, y + H / 2), h + rh), R2 = up(P(x + W + ov, y + H / 2), h + rh);
-    const a = up(P(x - ov, y - ov), h - 2), b = up(P(x + W + ov, y - ov), h - 2), c = up(P(x + W + ov, y + H + ov), h - 2), d = up(P(x - ov, y + H + ov), h - 2);
-    this.poly(ctx, [a, b, R2, R1], this.shade(roof, 0.75));
-    this.poly(ctx, [up(C, h), up(B, h), up(P(x + W, y + H / 2), h + rh)], wallR);     // фронтон
-    this.poly(ctx, [d, c, R2, R1], roof);
-    // черепица
-    ctx.strokeStyle = this.shade(roof, 0.85); ctx.lineWidth = 2;
-    for(let i = 1; i < 4; i++){ const t = i / 4; const l = { x: d.x + (R1.x - d.x) * t, y: d.y + (R1.y - d.y) * t }, r2 = { x: c.x + (R2.x - c.x) * t, y: c.y + (R2.y - c.y) * t }; ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.lineTo(r2.x, r2.y); ctx.stroke(); }
-    ctx.strokeStyle = this.shade(roof, 0.6); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(R1.x, R1.y); ctx.lineTo(R2.x, R2.y); ctx.stroke();
+    const a = up(P(x - ov, y - ov), h - 3), b = up(P(x + W + ov, y - ov), h - 3), c = up(P(x + W + ov, y + H + ov), h - 3), d = up(P(x - ov, y + H + ov), h - 3);
+    this.poly(ctx, [a, b, R2, R1], sh(roof, 0.7), OL);
+    const gab = [up(C, h), up(B, h), up(P(x + W, y + H / 2), h + rh)];
+    this.poly(ctx, gab, this.vgrad(ctx, C.y - h, C.y - h - rh, sh(wall, 0.84), sh(wall, 0.95)), OL);
+    // круглое окошко во фронтоне
+    const gw = up(P(x + W, y + H / 2), h + rh * 0.38);
+    ctx.fillStyle = '#fffaf0'; ctx.beginPath(); ctx.ellipse(gw.x, gw.y, 7, 8, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#6fb6d8'; ctx.beginPath(); ctx.ellipse(gw.x, gw.y, 5, 6, 0, 0, 7); ctx.fill();
+    // передний скат с градиентом
+    this.poly(ctx, [d, c, R2, R1], this.vgrad(ctx, d.y, R1.y, sh(roof, 0.92), sh(roof, 1.15)), OL);
+    // черепица: ряды и шахматные швы
+    ctx.strokeStyle = sh(roof, 0.72); ctx.lineWidth = 1.6;
+    const rows = 5;
+    for(let i = 1; i < rows; i++){
+      const t = i / rows;
+      const l = { x: d.x + (R1.x - d.x) * t, y: d.y + (R1.y - d.y) * t }, r2 = { x: c.x + (R2.x - c.x) * t, y: c.y + (R2.y - c.y) * t };
+      ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.lineTo(r2.x, r2.y); ctx.stroke();
+      const n = Math.max(4, Math.round(W / 14));
+      for(let k = (i % 2) * 0.5; k < n; k++){
+        const u = (k + 0.5) / n;
+        const p = { x: l.x + (r2.x - l.x) * u, y: l.y + (r2.y - l.y) * u };
+        const q = { x: p.x + (R1.x - d.x) / rows, y: p.y + (R1.y - d.y) / rows };
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+      }
+    }
+    // блик на скате
+    ctx.strokeStyle = '#ffffff40'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(R1.x + (d.x - R1.x) * 0.12, R1.y + (d.y - R1.y) * 0.12); ctx.lineTo(R2.x + (c.x - R2.x) * 0.12, R2.y + (c.y - R2.y) * 0.12); ctx.stroke();
+    // торцевая доска и конёк
+    this.poly(ctx, [d, c, { x: c.x, y: c.y + 6 }, { x: d.x, y: d.y + 6 }], sh(roof, 0.55), OL);
+    ctx.strokeStyle = sh(roof, 0.55); ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(c.x, c.y + 3); ctx.lineTo(R2.x, R2.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(R1.x, R1.y); ctx.lineTo(R2.x, R2.y); ctx.stroke();
+    ctx.strokeStyle = sh(roof, 1.25); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(R1.x, R1.y - 2); ctx.lineTo(R2.x, R2.y - 2); ctx.stroke();
     return { A, B, C, D, R1, R2 };
   },
   // Прямоугольник на стене +y (передняя левая): u — смещение вдоль стены (px), v — высота.
-  faceY(ctx, x, y, W, H, u0, u1, v0, v1, fill){
+  faceY(ctx, x, y, W, H, u0, u1, v0, v1, fill, stroke){
     const p = (u, v) => this.up(this.P(x + u, y + H), v);
-    this.poly(ctx, [p(u0, v0), p(u1, v0), p(u1, v1), p(u0, v1)], fill);
+    this.poly(ctx, [p(u0, v0), p(u1, v0), p(u1, v1), p(u0, v1)], fill, stroke);
   },
-  faceX(ctx, x, y, W, H, u0, u1, v0, v1, fill){
+  faceX(ctx, x, y, W, H, u0, u1, v0, v1, fill, stroke){
     const p = (u, v) => this.up(this.P(x + W, y + H - u), v);
-    this.poly(ctx, [p(u0, v0), p(u1, v0), p(u1, v1), p(u0, v1)], fill);
+    this.poly(ctx, [p(u0, v0), p(u1, v0), p(u1, v1), p(u0, v1)], fill, stroke);
+  },
+  // Окно с рамой, переплётом, ставнями и ящиком с цветами.
+  window(ctx, side, x, y, W, H, u0, u1, v0, v1, shutter, flowers){
+    const f = (a, b, c2, d2, col, st) => (side === 'y' ? this.faceY : this.faceX).call(this, ctx, x, y, W, H, a, b, c2, d2, col, st);
+    const dark = side === 'x';
+    if(shutter){ f(u0 - 10, u0 - 2, v0 - 1, v1 + 1, this.shade(shutter, dark ? 0.8 : 1), this.OL); f(u1 + 2, u1 + 10, v0 - 1, v1 + 1, this.shade(shutter, dark ? 0.8 : 1), this.OL); }
+    f(u0 - 3, u1 + 3, v0 - 3, v1 + 3, dark ? '#e8e0cc' : '#fffaf0', this.OL);
+    f(u0, u1, v0, v1, dark ? '#5aa3c8' : '#74c0e4');
+    f(u0, u1, (v0 + v1) / 2, v1, dark ? '#86c3e0' : '#a8dcf2');
+    f((u0 + u1) / 2 - 1.2, (u0 + u1) / 2 + 1.2, v0, v1, '#fffaf0');
+    f(u0, u1, (v0 + v1) / 2 - 1.2, (v0 + v1) / 2 + 1.2, '#fffaf0');
+    if(flowers){
+      f(u0 - 4, u1 + 4, v0 - 9, v0 - 3, '#8b5a2b', this.OL);
+      const pt = (u, v) => side === 'y' ? this.up(this.P(x + u, y + H), v) : this.up(this.P(x + W, y + H - u), v);
+      const cols = ['#ff5d8f', '#ffd23f', '#ffffff', '#ff8a3d'];
+      for(let u = u0; u <= u1; u += 5){ const p = pt(u, v0 - 1); ctx.fillStyle = '#3f9a32'; ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, 7); ctx.fill(); ctx.fillStyle = cols[Math.round(u) % 4]; ctx.beginPath(); ctx.arc(p.x, p.y - 2, 2.2, 0, 7); ctx.fill(); }
+    }
+  },
+  door(ctx, x, y, W, H, uc, w, hh, col){
+    const f = (a, b, c2, d2, cl, st) => this.faceY(ctx, x, y, W, H, a, b, c2, d2, cl, st);
+    f(uc - w / 2 - 4, uc + w / 2 + 4, 0, hh + 4, '#fffaf0', this.OL);
+    f(uc - w / 2, uc + w / 2, 0, hh, col, this.OL);
+    for(let k = 1; k < 4; k++){ const u = uc - w / 2 + w * k / 4; f(u - 0.6, u + 0.6, 2, hh - 2, this.shade(col, 0.75)); }
+    f(uc - w / 2, uc + w / 2, hh - 6, hh, this.shade(col, 0.8));
+    const kn = this.up(this.P(x + uc + w / 2 - 5, y + H), hh / 2); ctx.fillStyle = '#f4c542'; ctx.beginPath(); ctx.arc(kn.x, kn.y, 2.4, 0, 7); ctx.fill();
+  },
+  // Полосатый навес над дверью.
+  awning(ctx, x, y, W, H, u0, u1, v, col){
+    const n = 6, out = 18, drop = 14;
+    for(let i = 0; i < n; i++){
+      const ua = u0 + (u1 - u0) * i / n, ub = u0 + (u1 - u0) * (i + 1) / n;
+      const p1 = this.up(this.P(x + ua, y + H), v), p2 = this.up(this.P(x + ub, y + H), v);
+      const p3 = this.up(this.P(x + ub, y + H + out), v - drop), p4 = this.up(this.P(x + ua, y + H + out), v - drop);
+      this.poly(ctx, [p1, p2, p3, p4], i % 2 ? '#fffaf0' : col, this.OL, 1);
+      // фестон
+      const m = { x: (p3.x + p4.x) / 2, y: (p3.y + p4.y) / 2 };
+      ctx.fillStyle = i % 2 ? '#fffaf0' : col; ctx.beginPath(); ctx.arc(m.x, m.y, Math.hypot(p3.x - p4.x, p3.y - p4.y) / 2, 0, Math.PI); ctx.fill();
+    }
   },
   sign(ctx, px, py, icon, r = 17){
-    ctx.fillStyle = '#fffdf6'; ctx.strokeStyle = '#8b5a2b'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(px, py, r, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#00000030'; ctx.beginPath(); ctx.arc(px + 2, py + 3, r + 2, 0, 7); ctx.fill();
+    ctx.fillStyle = '#f4c542'; ctx.beginPath(); ctx.arc(px, py, r + 3, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#a8741a'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = '#fffdf6'; ctx.beginPath(); ctx.arc(px, py, r, 0, 7); ctx.fill();
     ctx.font = `${Math.round(r * 1.2)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#000'; ctx.fillText(icon, px, py + 1);
   },
   factory(ctx, x, y, W, H, B, working, time){
-    const h = 62;
-    const g = this.box(ctx, x, y, W, H, h, B.wall, B.roof, { roofH: 46 });
-    // дверь и окна
-    this.faceY(ctx, x, y, W, H, W / 2 - 16, W / 2 + 16, 0, 40, '#6b4226');
-    this.faceY(ctx, x, y, W, H, W / 2 - 13, W / 2 + 13, 3, 37, '#7d5230');
-    this.faceY(ctx, x, y, W, H, 14, 40, 26, 46, '#bfe3f5');
-    this.faceY(ctx, x, y, W, H, W - 40, W - 14, 26, 46, '#bfe3f5');
-    this.faceX(ctx, x, y, W, H, 30, 60, 26, 46, '#a9d3e8');
-    // труба
-    const ch = this.up(this.P(x + W * 0.75, y + H * 0.3), h + 30);
-    ctx.fillStyle = '#8c5a3c'; ctx.fillRect(ch.x - 7, ch.y - 30, 14, 34); ctx.fillStyle = '#6e452d'; ctx.fillRect(ch.x - 9, ch.y - 34, 18, 6);
+    const h = 66, i = 5;   // небольшой отступ — видна тень и трава вокруг
+    x += i; y += i; W -= i * 2; H -= i * 2;
+    this.box(ctx, x, y, W, H, h, B.wall, B.roof, { roofH: 48 });
+    this.door(ctx, x, y, W, H, W / 2, 28, 40, this.shade(B.roof, 0.85));
+    this.awning(ctx, x, y, W, H, W / 2 - 26, W / 2 + 26, 54, B.roof);
+    this.window(ctx, 'y', x, y, W, H, 14, 34, 24, 42, null, true);
+    this.window(ctx, 'y', x, y, W, H, W - 34, W - 14, 24, 42, null, true);
+    this.window(ctx, 'x', x, y, W, H, 26, 50, 24, 44, B.roof);
+    this.window(ctx, 'x', x, y, W, H, H - 50, H - 26, 24, 44, B.roof);
+    // кирпичная труба
+    const ch = this.up(this.P(x + W * 0.72, y + H * 0.3), h + 30);
+    ctx.fillStyle = '#9c4a32'; ctx.fillRect(ch.x - 8, ch.y - 30, 16, 36); ctx.fillStyle = '#7d3524'; ctx.fillRect(ch.x + 2, ch.y - 30, 6, 36);
+    ctx.strokeStyle = '#00000030'; ctx.lineWidth = 1; for(let k = 0; k < 5; k++){ ctx.beginPath(); ctx.moveTo(ch.x - 8, ch.y - 24 + k * 7); ctx.lineTo(ch.x + 8, ch.y - 24 + k * 7); ctx.stroke(); }
+    ctx.fillStyle = '#5a3a2a'; ctx.fillRect(ch.x - 10, ch.y - 35, 20, 6); ctx.strokeStyle = this.OL; ctx.lineWidth = 1.5; ctx.strokeRect(ch.x - 10, ch.y - 35, 20, 6); ctx.strokeRect(ch.x - 8, ch.y - 29, 16, 35);
     if(working){
-      ctx.fillStyle = '#ffffff';
-      for(let i = 0; i < 4; i++){ const p = (time * 0.5 + i / 4) % 1; ctx.globalAlpha = (1 - p) * 0.8; ctx.beginPath(); ctx.arc(ch.x + Math.sin(p * 7 + i) * 6, ch.y - 36 - p * 50, 5 + p * 8, 0, 7); ctx.fill(); }
+      for(let k = 0; k < 5; k++){ const p = (time * 0.45 + k / 5) % 1; ctx.globalAlpha = (1 - p) * 0.85; ctx.fillStyle = p < 0.3 ? '#ffffff' : '#eef2f5'; ctx.beginPath(); ctx.arc(ch.x + Math.sin(p * 6 + k) * 7 + p * 10, ch.y - 40 - p * 60, 5 + p * 11, 0, 7); ctx.fill(); }
       ctx.globalAlpha = 1;
     }
-    const s = this.up(this.P(x + W / 2, y + H), h + 14);
-    this.sign(ctx, s.x, s.y, B.e);
+    const s = this.up(this.P(x + W / 2, y + H), h + 20);
+    this.sign(ctx, s.x, s.y, B.e, 18);
   },
   barn(ctx, x, y, W, H){
-    const h = 74;
-    this.box(ctx, x, y, W, H, h, '#c8442f', '#7a2a1d', { roofH: 56 });
-    this.faceY(ctx, x, y, W, H, W / 2 - 26, W / 2 + 26, 0, 54, '#f4efe4');
-    this.faceY(ctx, x, y, W, H, W / 2 - 22, W / 2 + 22, 4, 50, '#9b3424');
+    const h = 80, i = 4;
+    x += i; y += i; W -= i * 2; H -= i * 2;
+    const red = '#d4432c';
+    this.box(ctx, x, y, W, H, h, red, '#6d6a72', { roofH: 58 });
+    const f = (a, b, c2, d2, cl, st) => this.faceY(ctx, x, y, W, H, a, b, c2, d2, cl, st);
+    // белая окантовка углов
+    f(0, 5, 8, h, '#fffaf0'); f(W - 5, W, 8, h, '#fffaf0');
+    this.faceX(ctx, x, y, W, H, H - 5, H, 8, h, '#e8e0cc');
+    // ворота с белым крестом
+    f(W / 2 - 30, W / 2 + 30, 0, 58, '#fffaf0', this.OL);
+    f(W / 2 - 26, W / 2 + 26, 0, 54, '#a3301f', this.OL);
     const p = (u, v) => this.up(this.P(x + u, y + H), v);
-    ctx.strokeStyle = '#f4efe4'; ctx.lineWidth = 4;
-    const a = p(W / 2 - 22, 4), b = p(W / 2 + 22, 50), c = p(W / 2 + 22, 4), d = p(W / 2 - 22, 50);
-    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.moveTo(c.x, c.y); ctx.lineTo(d.x, d.y); ctx.stroke();
-    this.faceX(ctx, x, y, W, H, 40, 70, 40, 60, '#f4efe4');
-    const s = this.up(this.P(x + W / 2, y + H), h + 18);
-    this.sign(ctx, s.x, s.y, '📦');
+    ctx.strokeStyle = '#fffaf0'; ctx.lineWidth = 4;
+    const a = p(W / 2 - 26, 2), b = p(W / 2 + 26, 54), c = p(W / 2 + 26, 2), d = p(W / 2 - 26, 54), m1 = p(W / 2, 0), m2 = p(W / 2, 54);
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.moveTo(c.x, c.y); ctx.lineTo(d.x, d.y); ctx.moveTo(m1.x, m1.y); ctx.lineTo(m2.x, m2.y); ctx.stroke();
+    // сеновал наверху
+    this.faceX(ctx, x, y, W, H, H / 2 - 16, H / 2 + 16, 46, 72, '#fffaf0', this.OL);
+    this.faceX(ctx, x, y, W, H, H / 2 - 12, H / 2 + 12, 48, 68, '#7a2a1d');
+    this.faceX(ctx, x, y, W, H, H / 2 - 12, H / 2 + 12, 48, 56, '#e8c35a');
+    this.window(ctx, 'x', x, y, W, H, 16, 36, 20, 38, null);
+    const s = this.up(this.P(x + W / 2, y + H), h + 22);
+    this.sign(ctx, s.x, s.y, '📦', 18);
   },
   // вода и причал за задним забором (плоско, в координатах земли)
   waterFlat(ctx, time){
@@ -221,8 +376,10 @@ const Art = {
     ctx.restore();
   },
   shelter(ctx, x, y, W, H, B){
-    this.box(ctx, x, y, W, H, 40, B.wall, B.roof, { roofH: 30 });
-    this.faceY(ctx, x, y, W, H, W / 2 - 13, W / 2 + 13, 0, 28, '#5a3820');
+    this.box(ctx, x, y, W, H, 42, B.wall, B.roof, { roofH: 32 });
+    this.faceY(ctx, x, y, W, H, W / 2 - 16, W / 2 + 16, 0, 31, '#fffaf0', this.OL);
+    this.faceY(ctx, x, y, W, H, W / 2 - 13, W / 2 + 13, 0, 28, '#4a2c16');
+    this.faceY(ctx, x, y, W, H, W / 2 - 13, W / 2 + 13, 0, 6, '#e8c35a');
     const s = this.up(this.P(x + W / 2, y + H), 54);
     this.sign(ctx, s.x, s.y, B.e, 14);
   },
@@ -243,16 +400,29 @@ const Art = {
   },
   tree(ctx, px, py, kind, time, seed){
     const sway = Math.sin(time * 1.3 + seed) * 2.5;
-    ctx.fillStyle = '#00000022'; ctx.beginPath(); ctx.ellipse(px, py, 34, 15, 0, 0, 7); ctx.fill();
-    ctx.fillStyle = '#7a4a24'; ctx.fillRect(px - 6, py - 40, 12, 40);
+    ctx.fillStyle = '#00000028'; ctx.beginPath(); ctx.ellipse(px + 6, py + 2, 38, 16, 0, 0, 7); ctx.fill();
+    // ствол
+    ctx.fillStyle = '#5c3416'; ctx.beginPath(); ctx.moveTo(px - 8, py); ctx.lineTo(px - 5, py - 46); ctx.lineTo(px + 5, py - 46); ctx.lineTo(px + 8, py); ctx.fill();
+    ctx.fillStyle = '#8a5428'; ctx.beginPath(); ctx.moveTo(px - 6, py - 1); ctx.lineTo(px - 3.5, py - 46); ctx.lineTo(px + 1.5, py - 46); ctx.lineTo(px + 1, py - 1); ctx.fill();
     if(kind === 'tree'){
-      ctx.fillStyle = '#3f8f35'; ctx.beginPath(); ctx.arc(px + sway, py - 62, 36, 0, 7); ctx.fill();
-      ctx.fillStyle = '#56a845'; ctx.beginPath(); ctx.arc(px - 10 + sway, py - 72, 24, 0, 7); ctx.fill();
-      ctx.fillStyle = '#e5533d'; [[-16, -54], [12, -66], [6, -46], [-4, -82], [20, -52]].forEach(([dx, dy]) => { ctx.beginPath(); ctx.arc(px + dx + sway, py + dy, 4.5, 0, 7); ctx.fill(); });
+      const blob = (pts, col) => { ctx.fillStyle = col; pts.forEach(([dx, dy, r]) => { ctx.beginPath(); ctx.arc(px + dx + sway, py + dy, r, 0, 7); ctx.fill(); }); };
+      const base = [[-22, -60, 22], [20, -60, 22], [0, -78, 26], [-12, -46, 18], [14, -46, 18], [0, -56, 24]];
+      blob(base.map(([a, b, r]) => [a, b, r + 2.5]), '#1f5e25');
+      blob(base, '#2f8a34');
+      blob([[-10, -70, 17], [10, -72, 15], [-18, -56, 13], [4, -84, 14]], '#47aa3e');
+      blob([[-14, -76, 8], [-2, -88, 6], [-24, -62, 6]], '#7fd060');
+      [[-16, -52], [14, -64], [6, -46], [-4, -80], [22, -52], [-24, -66]].forEach(([dx, dy]) => {
+        ctx.fillStyle = '#d92f2f'; ctx.beginPath(); ctx.arc(px + dx + sway, py + dy, 5, 0, 7); ctx.fill();
+        ctx.fillStyle = '#ff9a8a'; ctx.beginPath(); ctx.arc(px + dx + sway - 1.6, py + dy - 1.6, 1.6, 0, 7); ctx.fill();
+      });
     } else {
-      ctx.fillStyle = '#2f6f3a';
-      for(let i = 0; i < 3; i++){ const yy = py - 110 + i * 26; ctx.beginPath(); ctx.moveTo(px + sway * (1 - i / 3), yy); ctx.lineTo(px + 30 + i * 6, yy + 40); ctx.lineTo(px - 30 - i * 6, yy + 40); ctx.fill(); }
-      ctx.fillStyle = '#3d8546'; ctx.beginPath(); ctx.moveTo(px + sway, py - 110); ctx.lineTo(px + 8, py - 80); ctx.lineTo(px - 18, py - 74); ctx.fill();
+      for(let i = 0; i < 4; i++){
+        const yy = py - 128 + i * 26, wd = 20 + i * 9, top = px + sway * (1 - i / 4);
+        ctx.fillStyle = '#163f22'; ctx.beginPath(); ctx.moveTo(top, yy - 3); ctx.lineTo(px + wd + 3, yy + 40); ctx.lineTo(px - wd - 3, yy + 40); ctx.fill();
+        const g = ctx.createLinearGradient(px - wd, 0, px + wd, 0); g.addColorStop(0, '#3f9a4c'); g.addColorStop(0.5, '#2f7d3c'); g.addColorStop(1, '#1f5c2c');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(top, yy); ctx.lineTo(px + wd, yy + 38); ctx.quadraticCurveTo(px, yy + 44, px - wd, yy + 38); ctx.fill();
+      }
+      ctx.fillStyle = '#6cc070'; ctx.beginPath(); ctx.moveTo(px + sway, py - 128); ctx.lineTo(px - 6, py - 104); ctx.lineTo(px - 16, py - 92); ctx.fill();
     }
   },
   decorUp(ctx, kind, x, y, w, h, time){
@@ -356,6 +526,25 @@ const Art = {
         }
         break;
       }
+      case 'potato': {
+        ctx.fillStyle = '#3f9a32'; ctx.beginPath(); ctx.arc(x, y - 7 * k, 9 * k, 0, 7); ctx.fill();
+        ctx.fillStyle = '#5cbf45'; ctx.beginPath(); ctx.arc(x - 3, y - 9 * k, 6 * k, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(x + 4, y - 6 * k, 5 * k, 0, 7); ctx.fill();
+        if(stage >= 2){ ctx.fillStyle = '#e8dcff'; [[-4, -15], [4, -13]].forEach(([dx, dy]) => { ctx.beginPath(); ctx.arc(x + dx, y + dy * k, 2, 0, 7); ctx.fill(); }); }
+        if(stage === 3){ ctx.fillStyle = '#c99a5b'; [[-6, 2], [5, 3]].forEach(([dx, dy]) => { ctx.beginPath(); ctx.ellipse(x + dx, y + dy, 4.5, 3.2, 0.3, 0, 7); ctx.fill(); }); ctx.fillStyle = '#e2b97c'; ctx.beginPath(); ctx.arc(x - 7, y + 1, 1.3, 0, 7); ctx.fill(); }
+        break;
+      }
+      case 'pepper': {
+        ctx.strokeStyle = '#3f8a2a'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 20 * k); ctx.stroke();
+        ctx.fillStyle = '#4caf3a'; [[-6, -14, 7], [6, -18, 7], [0, -24, 6]].forEach(([dx, dy, r]) => { ctx.beginPath(); ctx.arc(x + dx, y + dy * k, r * k, 0, 7); ctx.fill(); });
+        if(stage === 3){ ['#e53935', '#fbc02d', '#43a047'].forEach((col, i) => { ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(x - 6 + i * 6, y - 8 - (i % 2) * 6, 3.2, 5, 0.1, 0, 7); ctx.fill(); }); }
+        break;
+      }
+      case 'cotton': {
+        ctx.strokeStyle = '#6b8e3a'; ctx.lineWidth = 2; for(let sx = -1; sx <= 1; sx++){ ctx.beginPath(); ctx.moveTo(x + sx * 3, y); ctx.lineTo(x + sx * 6, y - 22 * k); ctx.stroke(); }
+        ctx.fillStyle = '#5c9a36'; [[-6, -14], [6, -16]].forEach(([dx, dy]) => { ctx.beginPath(); ctx.ellipse(x + dx, y + dy * k, 5 * k, 3 * k, dx > 0 ? 0.5 : -0.5, 0, 7); ctx.fill(); });
+        if(stage === 3){ [[-6, -22], [6, -24], [0, -28]].forEach(([dx, dy]) => { ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(x + dx, y + dy, 5, 0, 7); ctx.fill(); ctx.fillStyle = '#e8e8f0'; ctx.beginPath(); ctx.arc(x + dx + 2, y + dy + 2, 2.5, 0, 7); ctx.fill(); }); }
+        break;
+      }
       case 'pumpkin': {
         ctx.strokeStyle = '#4e9a2e'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x - 10, y); ctx.quadraticCurveTo(x, y - 8, x + 10, y - 2); ctx.stroke();
         ctx.fillStyle = '#5fb03a'; ctx.beginPath(); ctx.arc(x - 6, y - 4, 5 * k, 0, 7); ctx.fill();
@@ -384,14 +573,17 @@ const Art = {
     const bob = Math.sin(t * 8) * 1.5;
     ctx.fillStyle = '#00000022'; ctx.beginPath(); ctx.ellipse(0, 10, 14, 4, 0, 0, 7); ctx.fill();
     if(kind === 'chicken'){
-      ctx.fillStyle = '#fffdf6'; ctx.beginPath(); ctx.ellipse(0, bob, 11, 9, 0, 0, 7); ctx.fill();
-      ctx.beginPath(); ctx.arc(8, -7 + bob, 6, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#8a7a6a'; ctx.lineWidth = 1.2;
+      ctx.fillStyle = '#fffdf6'; ctx.beginPath(); ctx.ellipse(0, bob, 11, 9, 0, 0, 7); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(8, -7 + bob, 6, 0, 7); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(0, bob, 10.4, 8.4, 0, 0, 7); ctx.fill();
       ctx.fillStyle = '#e5533d'; ctx.beginPath(); ctx.arc(9, -13 + bob, 3, 0, 7); ctx.fill();
       ctx.fillStyle = '#f2a33a'; ctx.beginPath(); ctx.moveTo(13, -7 + bob); ctx.lineTo(18, -5 + bob); ctx.lineTo(13, -3 + bob); ctx.fill();
       ctx.fillStyle = '#222'; ctx.beginPath(); ctx.arc(10, -8 + bob, 1.2, 0, 7); ctx.fill();
       ctx.fillStyle = '#eee7d6'; ctx.beginPath(); ctx.ellipse(-4, bob, 6, 4, 0.4, 0, 7); ctx.fill();
     } else if(kind === 'cow'){
-      ctx.fillStyle = '#fbfbf7'; ctx.beginPath(); ctx.roundRect(-16, -10 + bob, 30, 18, 8); ctx.fill();
+      ctx.strokeStyle = '#6a6a6a'; ctx.lineWidth = 1.2;
+      ctx.fillStyle = '#fbfbf7'; ctx.beginPath(); ctx.roundRect(-16, -10 + bob, 30, 18, 8); ctx.fill(); ctx.stroke();
       ctx.fillStyle = '#2b2b2b'; ctx.beginPath(); ctx.arc(-6, -4 + bob, 4, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(6, 2 + bob, 3, 0, 7); ctx.fill();
       ctx.fillStyle = '#fbfbf7'; ctx.beginPath(); ctx.roundRect(10, -16 + bob, 14, 14, 5); ctx.fill();
       ctx.fillStyle = '#f2b6b0'; ctx.beginPath(); ctx.roundRect(15, -8 + bob, 10, 7, 3); ctx.fill();
@@ -399,7 +591,9 @@ const Art = {
       ctx.fillStyle = '#d9c7a0'; ctx.fillRect(11, -19 + bob, 3, 4); ctx.fillRect(20, -19 + bob, 3, 4);
       ctx.fillStyle = '#555'; [-12, -4, 4, 10].forEach(lx => ctx.fillRect(lx, 7 + bob, 3, 6));
     } else {
-      ctx.fillStyle = '#f4f1ea';
+      ctx.fillStyle = '#b8b0a2';
+      [[-8, 0], [0, -4], [8, 0], [-2, 4], [6, 5], [-9, 6]].forEach(([dx, dy]) => { ctx.beginPath(); ctx.arc(dx, dy + bob, 8, 0, 7); ctx.fill(); });
+      ctx.fillStyle = '#f7f4ee';
       [[-8, 0], [0, -4], [8, 0], [-2, 4], [6, 5], [-9, 6]].forEach(([dx, dy]) => { ctx.beginPath(); ctx.arc(dx, dy + bob, 7, 0, 7); ctx.fill(); });
       ctx.fillStyle = '#3d3a44'; ctx.beginPath(); ctx.ellipse(15, -4 + bob, 6, 7, 0, 0, 7); ctx.fill();
       ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(17, -6 + bob, 1.4, 0, 7); ctx.fill();
@@ -411,7 +605,8 @@ const Art = {
     const r = opts.r || 16;
     const t = performance.now() / 300;
     const by = y + Math.sin(t + x) * 2;
-    ctx.fillStyle = opts.bg || '#fffdf6'; ctx.strokeStyle = opts.stroke || '#00000030'; ctx.lineWidth = 2;
+    ctx.fillStyle = '#00000030'; ctx.beginPath(); ctx.arc(x + 1.5, by + 3, r, 0, 7); ctx.fill();
+    ctx.fillStyle = opts.bg || '#fffdf6'; ctx.strokeStyle = opts.stroke || '#c9a46a'; ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.arc(x, by, r, 0, 7); ctx.fill(); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(x - 5, by + r - 2); ctx.lineTo(x, by + r + 7); ctx.lineTo(x + 5, by + r - 2); ctx.fill();
     ctx.font = `${Math.round(r * 1.15)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;

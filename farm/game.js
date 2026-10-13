@@ -10,7 +10,7 @@ let S = null;
 
 function newState(pid, nick){
   const st = {
-    v: 3, pid, nick,
+    v: 4, pid, nick,
     coins: 80, xp: 0, lvl: 1,
     cap: START_STORAGE,
     inv: { wheat: 8, corn: 3 },
@@ -40,6 +40,10 @@ function migrate(st){
     (st.plots || []).forEach(p => { delete p.gx; delete p.gy; });
     (st.decor || []).forEach(d => { delete d.gx; delete d.gy; });
   }
+  if((st.v || 1) < 4){
+    // v4: новая раскладка построек — фасады не закрывают друг друга
+    for(const b of Object.values(st.buildings)) { delete b.gx; delete b.gy; }
+  }
   st.fixed = st.fixed || { storage: { gx: FIXED.storage.spot[0], gy: FIXED.storage.spot[1] }, board: { gx: FIXED.board.spot[0], gy: FIXED.board.spot[1] } };
   const occ = makeOcc(st);
   for(const [k, b] of Object.entries(st.buildings)){
@@ -58,7 +62,7 @@ function migrate(st){
     if(d.gx === undefined){ const s = findSpot(occ, DECOR[d.kind].w, DECOR[d.kind].h, [11, 4]); if(s){ d.gx = s[0]; d.gy = s[1]; occ.mark(d.gx, d.gy, DECOR[d.kind].w, DECOR[d.kind].h); } }
   });
   st.decor = st.decor.filter(d => d.gx !== undefined);
-  st.v = 3;
+  st.v = 4;
   return migrateExtra(st);
 }
 
@@ -85,15 +89,33 @@ function makeOcc(st, skip){
   footprints(st, skip).forEach(f => occ.mark(...f));
   return occ;
 }
-function findSpot(occ, w, h, pref){
+function findSpot(occ, w, h, pref, ok){
   const [px, py] = pref || [Math.floor(MAP_W / 2), Math.floor(MAP_H / 2)];
   for(let r = 0; r < Math.max(MAP_W, MAP_H); r++){
     for(let dy = -r; dy <= r; dy++) for(let dx = -r; dx <= r; dx++){
       if(Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-      if(occ.free(px + dx, py + dy, w, h)) return [px + dx, py + dy];
+      if(occ.free(px + dx, py + dy, w, h) && (!ok || ok(px + dx, py + dy))) return [px + dx, py + dy];
     }
   }
-  return null;
+  return ok ? findSpot(occ, w, h, pref) : null;
+}
+// Не ставить новое так, чтобы оно закрывало фасады построек (или чтобы его фасад закрыли).
+function frontPoints(st, kind, key, gx, gy, w, h){
+  const T = TILE, x = gx * T, y = gy * T, W = w * T, H = h * T, P = (a, b, hh = 0) => { const q = Art.P(a, b); return { x: q.x, y: q.y - hh }; };
+  if(kind === 'house') return [P(x + W * 0.3, y + H * 0.6, 8), P(x + W * 0.6, y + H * 0.7, 8), P(x + W - 1.4 * T, y + 2 * T, 40)];
+  if(kind === 'factory' || kind === 'storage') return [P(x + W * 0.3, y + H, 22), P(x + W * 0.5, y + H, 30), P(x + W * 0.7, y + H, 22), P(x + W * 0.5, y + H * 0.5, 100)];
+  if(kind === 'board') return [P(x + W * 0.5, y + H * 0.7, 70)];
+  return [];
+}
+function clearView(st, cand){
+  const objs = Engine.objects().filter(o => o.key !== cand.key && o.type !== 'plot');
+  const depth = o => o.gx + o.w / 2 + o.gy + o.h / 2;
+  const sc = Engine.silhouette(cand), myFront = frontPoints(st, cand.type, cand.key, cand.gx, cand.gy, cand.w, cand.h);
+  for(const o of objs){
+    if(depth(o) > depth(cand)){ if(myFront.length && myFront.some(q => inPoly(q, Engine.silhouette(o)))) return false; }
+    else if(frontPoints(st, o.type, o.key, o.gx, o.gy, o.w, o.h).some(q => inPoly(q, sc))) return false;
+  }
+  return true;
 }
 
 function loadLocal(){
@@ -110,7 +132,8 @@ function save(){
 }
 
 /* ===================== ПОДСЧЁТЫ ===================== */
-const unlocked = key => (ITEMS[key]?.lvl || BUILDINGS[key]?.lvl || ANIMALS[key]?.lvl || DECOR[key]?.lvl || 1) <= S.lvl;
+// Ограничений по уровню нет: всё доступно сразу, нужны только монеты.
+const unlocked = () => true;
 const have = k => S.inv[k] || 0;
 function stored(){ return Object.values(S.inv).reduce((a, b) => a + b, 0); }
 function spaceLeft(){ return S.cap - stored(); }
@@ -135,17 +158,13 @@ function gainXp(n){
   while(S.xp >= xpForLevel(S.lvl)){
     S.xp -= xpForLevel(S.lvl);
     S.lvl++;
-    const opened = [
-      ...Object.keys(ITEMS).filter(k => ITEMS[k].lvl === S.lvl && ITEMS[k].kind !== 'feed').map(k => ITEMS[k].e + ' ' + ITEMS[k].n),
-      ...Object.keys(BUILDINGS).filter(k => BUILDINGS[k].lvl === S.lvl).map(k => BUILDINGS[k].e + ' ' + BUILDINGS[k].n),
-      ...Object.keys(DECOR).filter(k => DECOR[k].lvl === S.lvl).map(k => DECOR[k].e + ' ' + DECOR[k].n),
-    ];
+    const opened = [];
     S.coins += 20 * S.lvl;
     const lg = S.lvl % 5 === 0 ? 3 : 1; addGems(lg);
     if(S.lvl >= 3 && window.Social) Social.sys(`🎉 ${S.nick} достиг ${S.lvl} уровня!`);
     Sound.play('level'); buzz([30, 40, 60]);
     { const c = Engine.toWorld(window.innerWidth / 2, window.innerHeight / 2); Engine.burst(c.x, c.y, 'confetti', { n: 60, lift: 60 }); }
-    showSheet(`🎉 Уровень ${S.lvl}!`, `<p class="big">Награда: 🪙 ${20 * S.lvl} и 💎 ${lg}</p>${opened.length ? `<p>Открыто:</p><div class="chips">${opened.map(o => `<span class="chip">${o}</span>`).join('')}</div>` : ''}<p class="hint">Новые постройки — в 🛒 Магазине.</p><button class="btn primary" data-close>Отлично</button>`);
+    showSheet(`🎉 Уровень ${S.lvl}!`, `<p class="big">Награда: 🪙 ${20 * S.lvl} и 💎 ${lg}</p>${opened.length ? `<p>Открыто:</p><div class="chips">${opened.map(o => `<span class="chip">${o}</span>`).join('')}</div>` : ''}<button class="btn primary" data-close>Отлично</button>`);
     fillOrders();
   }
 }
@@ -246,12 +265,12 @@ function build(k){
   if(S.buildings[k]) return;
   if(!unlocked(k)) return toast(`Откроется на уровне ${B.lvl}`);
   if(S.coins < B.cost) return toast(`Нужно 🪙 ${B.cost}`);
-  const spot = findSpot(makeOcc(S), B.w, B.h, B.spot);
+  const spot = findSpot(makeOcc(S), B.w, B.h, B.spot, (gx, gy) => clearView(S, { type: B.kind, key: 'building:' + k, gx, gy, w: B.w, h: B.h }));
   if(!spot) return toast('Нет места на хуторе — уберите декор');
   S.coins -= B.cost;
   Engine.burst((spot[0] + B.w / 2) * TILE, (spot[1] + B.h / 2) * TILE, 'dust', { n: 30, lift: 0 }); Engine.pulse('building:' + k); buzz(40);
   S.buildings[k] = B.kind === 'house' ? { animals: [{ start: 0 }], gx: spot[0], gy: spot[1] } : { queue: [], gx: spot[0], gy: spot[1] };
-  gainXp(5 + B.lvl * 2);
+  gainXp(5 + Math.round(B.cost / 40));
   Sound.play('build');
   save(); closeSheet(); Engine.focus(spot[0] + B.w / 2, spot[1] + B.h / 2);
   toast(`${B.e} ${B.n} построен! Зажмите, чтобы переставить`);
@@ -289,7 +308,9 @@ const ORDER_SLOTS = () => Math.min(6, 3 + Math.floor(S.lvl / 4));
 function orderable(){
   return Object.keys(ITEMS).filter(k => {
     const it = ITEMS[k];
-    if(it.kind === 'feed' || !unlocked(k)) return false;
+    if(it.kind === 'feed') return false;
+    // долгие культуры в заказах — только если игрок их уже сажал или они есть в амбаре
+    if(it.kind === 'crop') return it.time <= 600 * (1 + S.lvl) || have(k) > 0 || S.plots.some(p => p.crop === k);
     if(it.kind === 'good') return !!S.buildings[RECIPES[k].b];
     if(it.kind === 'animal') return !!S.buildings[ANIMALS[Object.keys(ANIMALS).find(a => ANIMALS[a].makes === k)].house];
     return true;
@@ -392,7 +413,7 @@ function buyDecor(kind){
   const D = DECOR[kind];
   if(!unlocked(kind)) return toast(`Откроется на уровне ${D.lvl}`);
   if(S.coins < D.cost) return toast(`Нужно 🪙 ${D.cost}`);
-  const spot = findSpot(makeOcc(S), D.w, D.h, [11, 4]);
+  const spot = findSpot(makeOcc(S), D.w, D.h, [11, 4], (gx, gy) => clearView(S, { type: 'decor', kind, key: 'decor:new', gx, gy, w: D.w, h: D.h }));
   if(!spot) return toast('Нет места на хуторе');
   S.coins -= D.cost; S.decor.push({ kind, gx: spot[0], gy: spot[1] });
   Sound.play('build'); save(); closeSheet(); Engine.focus(spot[0] + D.w / 2, spot[1] + D.h / 2);

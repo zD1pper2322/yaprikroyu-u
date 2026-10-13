@@ -37,7 +37,7 @@ const Engine = {
   focus(gx, gy, instant){
     const p = Art.P(gx * TILE, gy * TILE);
     const tx = p.x - this.W / 2 / this.cam.z, ty = p.y - this.H / 2 / this.cam.z;
-    if(instant){ this.cam.x = tx; this.cam.y = ty; this.clamp(); return; }
+    if(instant){ this.camTarget = null; this.cam.x = tx; this.cam.y = ty; this.clamp(); return; }
     this.camTarget = { x: tx, y: ty };
   },
   clamp(){
@@ -63,17 +63,85 @@ const Engine = {
     if(this.moving){ const o = list.find(o => o.key === this.moving.key); if(o){ o.gx = this.moving.gx; o.gy = this.moving.gy; } }
     return list;
   },
-  height(o){ return o.type === 'factory' ? 120 : o.type === 'storage' ? 140 : o.type === 'board' ? 100 : o.type === 'decor' && (o.kind === 'tree' || o.kind === 'pine') ? 110 : o.type === 'house' ? 40 : 30; },
+  // Силуэт объекта на экране (в изометрических координатах): выпуклая оболочка
+  // точек основания, стен, крыши, трубы и значков. Нажатие засчитывается,
+  // только если палец попал внутрь силуэта; из нескольких — берётся передний.
+  silhouette(o){
+    const T = TILE, P = (a, b, h = 0) => { const q = Art.P(a, b); return { x: q.x, y: q.y - h }; };
+    const x = o.gx * T, y = o.gy * T, w = o.w * T, h = o.h * T;
+    const pts = [P(x, y), P(x + w, y), P(x + w, y + h), P(x, y + h)];
+    const ring = (cx, cy, r) => { for(let k = 0; k < 8; k++) pts.push({ x: cx + Math.cos(k * Math.PI / 4) * r, y: cy + Math.sin(k * Math.PI / 4) * r }); };
+    const roofed = (ins, wallH, roofH, signH) => {
+      const X = x + ins, Y = y + ins, W2 = w - ins * 2, H2 = h - ins * 2, ov = 9;
+      [[X, Y], [X + W2, Y], [X + W2, Y + H2], [X, Y + H2]].forEach(([a, b]) => pts.push(P(a, b, wallH)));
+      pts.push(P(X - ov, Y + H2 / 2, wallH + roofH), P(X + W2 + ov, Y + H2 / 2, wallH + roofH), P(X - ov, Y + H2 + ov, wallH - 3), P(X + W2 + ov, Y + H2 + ov, wallH - 3), P(X - ov, Y - ov, wallH - 3), P(X + W2 + ov, Y - ov, wallH - 3));
+      const sg = P(X + W2 / 2, Y + H2, signH); ring(sg.x, sg.y, 22);
+      return { X, Y, W2, H2 };
+    };
+    switch(o.type){
+      case 'plot': return pts.map(p => ({ x: p.x, y: p.y - 4 }));
+      case 'factory': {
+        const r = roofed(5, 66, 48, 86);
+        const ch = P(r.X + r.W2 * 0.72, r.Y + r.H2 * 0.3, 66 + 30); pts.push({ x: ch.x - 10, y: ch.y - 36 }, { x: ch.x + 10, y: ch.y - 36 });
+        const top = P(x + w / 2, y + h / 2); ring(top.x, top.y - 150, 22);   // пузырь «готово»
+        break;
+      }
+      case 'storage': roofed(4, 80, 58, 102); break;
+      case 'house': {
+        [[x, y], [x + w, y], [x + w, y + h], [x, y + h]].forEach(([a, b]) => pts.push(P(a, b, 36)));
+        const sx = x + w - 2.4 * T, sy = y + 0.3 * T;
+        pts.push(P(sx, sy, 80), P(sx + 2 * T, sy, 80), P(sx + T, sy + 0.85 * T, 90));
+        break;
+      }
+      case 'board': pts.push(P(x + 20, y + 70, 100), P(x + 76, y + 70, 100)); { const c = P(x + w / 2, y + h / 2); ring(c.x, c.y - 120, 18); } break;
+      case 'decor': {
+        const c = P(x + w / 2, y + h / 2);
+        if(o.kind === 'tree') ring(c.x, c.y - 56, 44);
+        else if(o.kind === 'pine') { pts.push({ x: c.x, y: c.y - 130 }); ring(c.x, c.y - 40, 42); }
+        else if(o.kind === 'well') pts.push(P(x + 8, y + h / 2 - 20, 70), P(x + w - 8, y + h / 2 + 20, 70), P(x + 8, y + h / 2 + 20, 70));
+        else if(o.kind === 'sunflower') ring(c.x, c.y - 30, 16);
+        else if(o.kind !== 'pond') ring(c.x, c.y - 18, 18);
+        break;
+      }
+    }
+    return hull(pts);
+  },
+  // Точное нажатие: перерисовываем каждый объект в крошечный холст 1×1 под пальцем
+  // и смотрим, закрашен ли пиксель. Побеждает самый верхний (последний нарисованный).
+  pickAt(sx, sy){
+    const sc = this.scene; if(!sc) return this.hit(this.toWorld(sx, sy).x, this.toWorld(sx, sy).y);
+    const r = this.cv.getBoundingClientRect(), px = sx - r.left, py = sy - r.top, z = this.cam.z;
+    if(!this.pickCv){ this.pickCv = document.createElement('canvas'); this.pickCv.width = this.pickCv.height = 1; this.pickCtx = this.pickCv.getContext('2d', { willReadFrequently: true }); }
+    const pc = this.pickCtx;
+    const test = (fn, dy = 0) => {
+      pc.setTransform(1, 0, 0, 1, 0, 0); pc.clearRect(0, 0, 1, 1);
+      pc.setTransform(z, 0, 0, z, -this.cam.x * z - px, -this.cam.y * z - py + dy * z);
+      try{ fn(); }catch(e){}
+      return pc.getImageData(0, 0, 1, 1).data[3] > 60;
+    };
+    let key = null;
+    sc.setCtx(pc);
+    const saveOv = this.ctx;
+    try{
+      const n = sc.overlays.length;
+      for(const it of sc.items) if(it.key && test(it.fn)) key = it.key;
+      sc.overlays.length = n;
+      for(const ov of sc.overlays) if(ov.key && test(ov.fn, sc.bob)) key = ov.key;
+    } finally { sc.setCtx(saveOv); }
+    if(key === 'truck' || key === 'chest' || key === 'boat') return { type: key, key, fixed: true };
+    if(key){ const o = sc.objs.find(o2 => o2.key === key) || this.objects().find(o2 => o2.key === key); if(o) return o; }
+    // ничего вертикального под пальцем — смотрим, на чьей земле нажали (грядки, загоны, тени построек)
+    const w = this.toWorld(sx, sy);
+    return this.ground(w.x, w.y) || this.ground(w.x + 9, w.y + 9);   // +9 — верх приподнятой грядки
+  },
+  ground(wx, wy){
+    const c = this.objects().filter(o => wx >= o.gx * TILE && wx < (o.gx + o.w) * TILE && wy >= o.gy * TILE && wy < (o.gy + o.h) * TILE);
+    c.sort((a, b) => (b.gx + b.gy) - (a.gx + a.gy));
+    return c[0] || null;
+  },
   hit(wx, wy){
-    const w = { x: wx, y: wy }, iso = Art.P(wx, wy);
-    const cands = this.objects().filter(o => {
-      const x0 = o.gx * TILE, y0 = o.gy * TILE, x1 = (o.gx + o.w) * TILE, y1 = (o.gy + o.h) * TILE;
-      if(w.x >= x0 && w.x < x1 && w.y >= y0 && w.y < y1) return true;
-      if(o.type === 'plot') return false;
-      // тело постройки над основанием
-      const L = Art.P(x0, y1), R = Art.P(x1, y0), T = Art.P(x0, y0), B = Art.P(x1, y1);
-      return iso.x >= L.x && iso.x <= R.x && iso.y >= T.y - this.height(o) && iso.y <= B.y;
-    });
+    const q = Art.P(wx, wy);
+    const cands = this.objects().filter(o => inPoly(q, this.silhouette(o)));
     cands.sort((a, b) => (b.gx + b.w / 2 + b.gy + b.h / 2) - (a.gx + a.w / 2 + a.gy + a.h / 2));
     return cands[0] || null;
   },
@@ -134,7 +202,7 @@ const Engine = {
     requestAnimationFrame(tt => this.frame(tt));
   },
   draw(time){
-    const c = this.ctx, z = this.cam.z, st = this.st;
+    let c = this.ctx; const z = this.cam.z, st = this.st;
     c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     c.clearRect(0, 0, this.W, this.H);
     c.setTransform(this.dpr * z, 0, 0, this.dpr * z, -this.cam.x * z * this.dpr, -this.cam.y * z * this.dpr);
@@ -148,8 +216,7 @@ const Engine = {
       const x = o.gx * T, y = o.gy * T, w = o.w * T, h = o.h * T;
       if(o.type === 'plot'){
         const p = st.plots[o.idx], ps = plotState(p);
-        const hl = this.tool && ((this.tool.kind === 'seed' && ps.s === 'empty') || (this.tool.kind === 'sickle' && ps.s === 'ready')) ? '#ffffffcc' : (p.helpedBy && ps.s === 'growing' ? '#7fd3ff' : null);
-        Art.plotFlat(c, x, y, w, ps.s === 'ready', hl);
+        Art.plotFlat(c, x, y, w);
       } else if(o.type === 'house') Art.penFlat(c, x, y, w, h);
       else if(o.type === 'factory' || o.type === 'storage') Art.shadowFlat(c, x, y, w, h);
       else if(o.type === 'decor' && o.kind === 'pond') Art.pondFlat(c, x, y, w, h);
@@ -161,6 +228,14 @@ const Engine = {
       for(let j = 0; j <= MAP_H; j++){ c.beginPath(); c.moveTo(0, j * T); c.lineTo(MAP_W * T, j * T); c.stroke(); }
     }
     c.restore();
+    Art.cliff(c);
+    // приподнятые грядки (низкие — рисуются до всего вертикального)
+    objs.filter(o => o.type === 'plot').sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy)).forEach(o => {
+      const p = st.plots[o.idx], ps = plotState(p);
+      const hl = this.tool && ((this.tool.kind === 'seed' && ps.s === 'empty') || (this.tool.kind === 'sickle' && ps.s === 'ready')) ? '#ffffffcc' : (p.helpedBy && ps.s === 'growing' ? '#7fd3ff' : null);
+      Art.plotBed(c, o.gx * T, o.gy * T, o.w * T, ps.s === 'ready', hl);
+      if(this.moving && this.moving.key === o.key){ const q = [Art.P(o.gx * T, o.gy * T), Art.P((o.gx + 2) * T, o.gy * T), Art.P((o.gx + 2) * T, (o.gy + 2) * T), Art.P(o.gx * T, (o.gy + 2) * T)]; Art.poly(c, q.map(v => ({ x: v.x, y: v.y - 9 })), this.moving.ok ? '#3fcf4a55' : '#e5533d66'); }
+    });
     // 2) задний забор хутора
     const W = MAP_W * T, H = MAP_H * T;
     const bp = Boat.pos(st);
@@ -168,8 +243,11 @@ const Engine = {
     Art.fenceLine(c, 0, 0, W, 0); Art.fenceLine(c, 0, 0, 0, H, [5.8 * T, 8.2 * T]);
     // 3) вертикальные объекты по глубине (дальше — раньше)
     const items = [], overlays = [];
-    const add = (depth, fn) => items.push({ depth, fn });
+    let curKey = null;
+    const add = (depth, fn, key = curKey) => items.push({ depth, fn, key });
+    const ovl = (fn, key = curKey) => overlays.push({ fn, key });
     for(const o of objs){
+      curKey = o.key;
       const x = o.gx * T, y = o.gy * T, w = o.w * T, h = o.h * T;
       const depth = x + w / 2 + y + h / 2;
       if(o.type === 'plot'){
@@ -182,7 +260,7 @@ const Engine = {
           pts.sort((a2, b2) => (a2[0] + a2[1]) - (b2[0] + b2[1]));
           for(const [gx2, gy2] of pts){
             const q = Art.P(gx2, gy2);
-            c.save(); c.translate(q.x, q.y); c.scale(1.35, 1.35);
+            c.save(); c.translate(q.x, q.y - 9); c.scale(1.4, 1.4);
             if(stage > 0){ const sway = Math.sin(time * 2 + gx2 * 0.05) * 0.06; c.rotate(sway); }
             Art.crop(c, p.crop, stage, 0, 0, r);
             c.restore();
@@ -193,7 +271,7 @@ const Engine = {
         const B = BUILDINGS[o.bk], b = st.buildings[o.bk];
         // забор загона: задние стороны, домик, корыто, животные, передние стороны
         add(x + y, () => { Art.fenceLine(c, x, y, x + w, y); Art.fenceLine(c, x, y, x, y + h); });
-        add(x + w - 2.2 * T + y + 2.2 * T, () => this.squash(o.key, Art.P(x + w - 1.4 * T, y + 2 * T), time, () => Art.shelter(c, x + w - 2.4 * T, y + 0.3 * T, 2 * T, 1.7 * T, B)));
+        add(x + w - 2.2 * T + y + 2.2 * T, () => this.squash(c, o.key, Art.P(x + w - 1.4 * T, y + 2 * T), time, () => Art.shelter(c, x + w - 2.4 * T, y + 0.3 * T, 2 * T, 1.7 * T, B)));
         add(x + 0.4 * T + y + h - 0.8 * T, () => Art.trough(c, x + 0.4 * T, y + h - 0.9 * T));
         (b.animals || []).forEach((a2, i) => {
           const m = this.animalPos(o.bk, i); if(!m) return;
@@ -202,54 +280,58 @@ const Engine = {
             const q = Art.P(m.x, m.y);
             const hop = m.hop && time - m.hop < 0.4 ? Math.sin((time - m.hop) / 0.4 * Math.PI) * 10 : 0;
             Art.animal(c, B.animal, q.x, q.y - hop, m.dir, m.walk ? time : 0, as.s);
-            if(as.s === 'ready') overlays.push(() => Art.bubble(c, q.x, q.y - 54, ITEMS[ANIMALS[B.animal].makes].e, { r: 15 }));
-            else if(as.s === 'hungry') overlays.push(() => Art.bubble(c, q.x, q.y - 48, ITEMS[ANIMALS[B.animal].feed].e, { r: 10, bg: '#ffffffcc' }));
+            if(as.s === 'ready') ovl(() => Art.bubble(c, q.x, q.y - 54, ITEMS[ANIMALS[B.animal].makes].e, { r: 15 }), o.key);
+            else if(as.s === 'hungry') ovl(() => Art.bubble(c, q.x, q.y - 48, ITEMS[ANIMALS[B.animal].feed].e, { r: 10, bg: '#ffffffcc' }), o.key);
           });
         });
         add(x + w + y + h, () => { Art.fenceLine(c, x, y + h, x + w, y + h); Art.fenceLine(c, x + w, y, x + w, y + h); });
       } else if(o.type === 'factory'){
         const B = BUILDINGS[o.bk], q = st.buildings[o.bk].queue || [];
         const run = q.find(j => j.start <= now() && j.end > now()), done = q.filter(j => j.end <= now());
-        add(depth, () => this.squash(o.key, Art.P(x + w / 2, y + h), time, () => Art.factory(c, x, y, w, h, B, !!run, time)));
+        add(depth, () => this.squash(c, o.key, Art.P(x + w / 2, y + h), time, () => Art.factory(c, x, y, w, h, B, !!run, time)));
         const top = Art.P(x + w / 2, y + h / 2);
-        if(done.length) overlays.push(() => Art.bubble(c, top.x, top.y - 150, ITEMS[done[0].item].e, { badge: done.length > 1 ? done.length : 0 }));
-        else if(run){ const pct = (now() - run.start) / (run.end - run.start); const bp = Art.P(x + w, y + h); overlays.push(() => { c.fillStyle = '#00000066'; c.beginPath(); c.roundRect(bp.x - 70, bp.y - 4, 70, 10, 5); c.fill(); c.fillStyle = '#7ad04f'; c.beginPath(); c.roundRect(bp.x - 70, bp.y - 4, 70 * pct, 10, 5); c.fill(); }); }
+        if(done.length) ovl(() => Art.bubble(c, top.x, top.y - 150, ITEMS[done[0].item].e, { badge: done.length > 1 ? done.length : 0 }));
+        else if(run){ const pct = (now() - run.start) / (run.end - run.start); const bp = Art.P(x + w, y + h); ovl(() => { c.fillStyle = '#00000066'; c.beginPath(); c.roundRect(bp.x - 70, bp.y - 4, 70, 10, 5); c.fill(); c.fillStyle = '#7ad04f'; c.beginPath(); c.roundRect(bp.x - 70, bp.y - 4, 70 * pct, 10, 5); c.fill(); }); }
       } else if(o.type === 'storage'){
-        add(depth, () => this.squash(o.key, Art.P(x + w / 2, y + h), time, () => Art.barn(c, x, y, w, h)));
+        add(depth, () => this.squash(c, o.key, Art.P(x + w / 2, y + h), time, () => Art.barn(c, x, y, w, h)));
       } else if(o.type === 'board'){
-        add(depth, () => this.squash(o.key, Art.P(x + w / 2, y + h), time, () => Art.board(c, x, y)));
+        add(depth, () => this.squash(c, o.key, Art.P(x + w / 2, y + h), time, () => Art.board(c, x, y)));
         const hasOrder = !this.visit && (S.orders || []).some(o2 => o2 && canPay(o2.items)) && truckState() === 'home';
-        if(hasOrder){ const q = Art.P(x + w / 2, y + h / 2); overlays.push(() => Art.bubble(c, q.x, q.y - 120, '✅', { r: 14 })); }
+        if(hasOrder){ const q = Art.P(x + w / 2, y + h / 2); ovl(() => Art.bubble(c, q.x, q.y - 120, '✅', { r: 14 })); }
       } else if(o.type === 'decor'){
-        add(depth, () => this.squash(o.key, Art.P(x + w / 2, y + h), time, () => Art.decorUp(c, o.kind, x, y, w, h, time)));
+        add(depth, () => this.squash(c, o.key, Art.P(x + w / 2, y + h), time, () => Art.decorUp(c, o.kind, x, y, w, h, time)));
       }
     }
+    curKey = null;
     // сундук
-    if(st.chest){ const ch = st.chest; add((ch.gx + ch.gy + 1) * T, () => Art.chest(c, (ch.gx + 0.5) * T, (ch.gy + 0.5) * T, time)); }
+    if(st.chest){ const ch = st.chest; add((ch.gx + ch.gy + 1) * T, () => Art.chest(c, (ch.gx + 0.5) * T, (ch.gy + 0.5) * T, time), 'chest'); }
     // значок над кораблём
     if(bp && bp.docked && !this.visit){
       const can = st.boat.crates.some(cr => !cr.done && have(cr.item) >= cr.n), q = Art.P(bp.x, bp.y);
-      overlays.push(() => Art.bubble(c, q.x + 40, q.y - 130, can ? '📦' : '⛵', { r: can ? 17 : 13, bg: can ? '#fffdf6' : '#ffffffcc' }));
+      ovl(() => Art.bubble(c, q.x + 40, q.y - 130, can ? '📦' : '⛵', { r: can ? 17 : 13, bg: can ? '#fffdf6' : '#ffffffcc' }), 'boat');
     }
     // грузовик
     const tp = this.truckPos();
     if(tp){
-      add(tp.x + tp.y, () => { const q = Art.P(tp.x, tp.y); Art.truck(c, q.x, q.y - 8, tp.flip, tp.cargo); });
-      if(!this.visit && truckState() === 'back'){ const q = Art.P(tp.x, tp.y); overlays.push(() => Art.bubble(c, q.x, q.y - 70, '🪙', { r: 17 })); }
+      add(tp.x + tp.y, () => { const q = Art.P(tp.x, tp.y); Art.truck(c, q.x, q.y - 8, tp.flip, tp.cargo); }, 'truck');
+      if(!this.visit && truckState() === 'back'){ const q = Art.P(tp.x, tp.y); ovl(() => Art.bubble(c, q.x, q.y - 70, '🪙', { r: 17 }), 'truck'); }
     }
     items.sort((a2, b2) => a2.depth - b2.depth).forEach(it => it.fn());
+    const ovN = overlays.length;
     // 4) передний забор
     Art.fenceLine(c, 0, H, W, H); Art.fenceLine(c, W, 0, W, H);
     const bob = Math.sin(time * 3) * 3;
-    c.save(); c.translate(0, bob); overlays.forEach(f => f()); c.restore();
+    c.save(); c.translate(0, bob); overlays.forEach(f => f.fn()); c.restore();
     this.drawParts(c, this.dt);
+    // для точных нажатий: запоминаем, что и в каком порядке нарисовано
+    this.scene = { items, overlays: overlays.slice(0, ovN), bob, setCtx: v => { c = v; }, objs };
   },
   /* ---------- «сочность»: пружинка и частицы ---------- */
   pulse(key){ this.pulses.set(key, performance.now() / 1000); },
-  squash(key, base, time, fn){
+  squash(c, key, base, time, fn){
     const t0 = this.pulses.get(key), k = t0 === undefined ? 1 : (time - t0) / 0.35;
     if(k >= 1 || k < 0){ if(t0 !== undefined && k >= 1) this.pulses.delete(key); return fn(); }
-    const a = Math.sin(k * Math.PI) * (1 - k) * 0.22, c = this.ctx;
+    const a = Math.sin(k * Math.PI) * (1 - k) * 0.22;
     c.save(); c.translate(base.x, base.y); c.scale(1 + a, 1 - a); c.translate(-base.x, -base.y); fn(); c.restore();
   },
   burst(wx, wy, kind, opt = {}){
@@ -320,7 +402,7 @@ const Engine = {
       return;
     }
     const w = this.toWorld(e.clientX, e.clientY);
-    const obj = this.hit(w.x, w.y);
+    const obj = this.pickAt(e.clientX, e.clientY);
     this.gesture = { type:'press', sx: e.clientX, sy: e.clientY, cx: this.cam.x, cy: this.cam.y, obj, w, moved: false };
     clearTimeout(this.pressTimer);
     if(obj && !obj.fixed && !this.visit){
@@ -387,12 +469,12 @@ const Engine = {
   /* ---------- нажатия ---------- */
   tap(obj, w, e){
     if(this.visit) return Net.tapVisit(obj, w);
-    // грузовик
-    const tp = this.truckPos();
-    if(tp && truckState() === 'back'){ const a = Art.P(tp.x, tp.y), b2 = Art.P(w.x, w.y); if(Math.hypot(a.x - b2.x, a.y - 30 - b2.y) < 70){ collectTruck(); return; } }
-    // сундук и корабль
-    if(S.chest && w.x >= (S.chest.gx - 0.3) * TILE && w.x < (S.chest.gx + 1.3) * TILE && w.y >= (S.chest.gy - 0.3) * TILE && w.y < (S.chest.gy + 1.3) * TILE){ Chest.open(); return; }
-    { const bp = Boat.pos(); const a = bp && Art.P(bp.x, bp.y), b2 = Art.P(w.x, w.y);
+    // грузовик, сундук — их находит точное нажатие
+    if(obj && obj.type === 'truck'){ if(truckState() === 'back') collectTruck(); else openOrders(); return; }
+    if(obj && obj.type === 'chest'){ Chest.open(); return; }
+    if(obj && obj.type === 'boat'){ Sound.play('tap'); openBoat(); return; }
+    // корабль и вода за забором
+    if(!obj){ const bp = Boat.pos(); const a = bp && Art.P(bp.x, bp.y), b2 = Art.P(w.x, w.y);
       if((a && Math.hypot(a.x - b2.x, a.y - 50 - b2.y) < 85) || (w.x < -0.3 * TILE && w.x > -7.5 * TILE && w.y > -7.5 * TILE && w.y < 5.2 * TILE)){ Sound.play('tap'); openBoat(); return; } }
     if(!obj) return;
     Sound.play('tap');
@@ -488,9 +570,16 @@ const Radial = {
     r.hidden = false;
     const n = items.length, R = n <= 1 ? 0 : Math.min(110, 46 + n * 9);
     const btns = [...r.querySelectorAll('.rad-item')];
+    // много семян — раскладываем сеткой над пальцем, иначе полукругом
+    const cols = Math.min(5, n), rows = Math.ceil(n / cols), grid = n > 6;
     btns.forEach((b, i) => {
-      const a = n <= 1 ? -Math.PI / 2 : -Math.PI + (i + 0.5) * Math.PI / n;
-      b.style.left = (Math.cos(a) * R) + 'px'; b.style.top = (Math.sin(a) * R - (n <= 1 ? 56 : 30)) + 'px';
+      if(grid){
+        const row = Math.floor(i / cols), inRow = Math.min(cols, n - row * cols), col = i % cols;
+        b.style.left = ((col - (inRow - 1) / 2) * 66) + 'px'; b.style.top = (-70 - (rows - 1 - row) * 74) + 'px';
+      } else {
+        const a = n <= 1 ? -Math.PI / 2 : -Math.PI + (i + 0.5) * Math.PI / n;
+        b.style.left = (Math.cos(a) * R) + 'px'; b.style.top = (Math.sin(a) * R - (n <= 1 ? 56 : 30)) + 'px';
+      }
       const it = items[i];
       b.addEventListener('pointerdown', ev => {
         ev.preventDefault(); ev.stopPropagation();
@@ -503,7 +592,8 @@ const Radial = {
         b.addEventListener('pointermove', mv); b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up);
       });
     });
-    const x = Math.max(130, Math.min(window.innerWidth - 130, sx)), y = Math.max(200, Math.min(window.innerHeight - 90, sy));
+    const hw = grid ? cols * 33 + 6 : 130, top = grid ? rows * 74 + 110 : 200;
+    const x = Math.max(hw, Math.min(window.innerWidth - hw, sx)), y = Math.max(top, Math.min(window.innerHeight - 90, sy));
     r.style.left = x + 'px'; r.style.top = y + 'px';
   },
   close(){ const r = $('#radial'); r.hidden = true; r.classList.remove('dragging'); r.innerHTML = ''; },
@@ -517,3 +607,22 @@ const Radial = {
     this.open(sx, sy, [{ icon: ITEMS[A.feed].e, badge: have(A.feed), disabled: !have(A.feed), disabledText: `Нет корма — сделайте ${ITEMS[A.feed].n.toLowerCase()} на кормовом заводе`, tool: { kind:'feed', hk, icon: ITEMS[A.feed].e } }], 'Проведите по животным');
   },
 };
+
+/* ---------- геометрия для точных нажатий ---------- */
+function hull(pts){
+  const p = pts.slice().sort((a, b) => a.x - b.x || a.y - b.y);
+  if(p.length < 3) return p;
+  const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const lo = [], up = [];
+  for(const q of p){ while(lo.length >= 2 && cross(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); }
+  for(let i = p.length - 1; i >= 0; i--){ const q = p[i]; while(up.length >= 2 && cross(up[up.length - 2], up[up.length - 1], q) <= 0) up.pop(); up.push(q); }
+  return lo.slice(0, -1).concat(up.slice(0, -1));
+}
+function inPoly(q, poly){
+  let inside = false;
+  for(let i = 0, j = poly.length - 1; i < poly.length; j = i++){
+    const a = poly[i], b = poly[j];
+    if((a.y > q.y) !== (b.y > q.y) && q.x < (b.x - a.x) * (q.y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+  }
+  return inside;
+}
