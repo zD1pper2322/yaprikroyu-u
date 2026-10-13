@@ -3,6 +3,10 @@ import * as THREE from 'three';
 import { MODELS } from './models.js';
 import './factories.js';
 import './extras.js';
+import { EffectComposer } from '../tjs/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from '../tjs/examples/jsm/postprocessing/RenderPass.js';
+import { GTAOPass } from '../tjs/examples/jsm/postprocessing/GTAOPass.js';
+import { OutputPass } from '../tjs/examples/jsm/postprocessing/OutputPass.js';
 
 const K = 67.88;          // пикселей на клетку по горизонтали в игре (1×)
 const SS = 6;             // рендерим в 6×, на выходе 3× — чётко даже на плотных экранах
@@ -56,7 +60,15 @@ window.renderSprite = async function(name, args = {}){
   cam.lookAt(cx, 0, cz);
   // масштаб: 1 клетка по x → 0.707·k пикселей по горизонтали
   cam.zoom = 1; cam.updateProjectionMatrix();
-  renderer.render(scene, cam);
+  if(window.USE_AO !== false){
+    const rt = new THREE.WebGLRenderTarget(size, size, { type: THREE.HalfFloatType, samples: 0 });
+    const comp = new EffectComposer(renderer, rt); comp.setSize(size, size);
+    comp.addPass(new RenderPass(scene, cam));
+    const ao = new GTAOPass(scene, cam, size, size); ao.blendIntensity = 1.0;
+    ao.updateGtaoMaterial({ radius: 0.35, distanceExponent: 1.5, thickness: 1, scale: 1.4, samples: 16 });
+    comp.addPass(ao); comp.addPass(new OutputPass());
+    comp.render();
+  } else renderer.render(scene, cam);
   const src = renderer.domElement;
   // обрезаем по непрозрачным пикселям
   const tmp = document.createElement('canvas'); tmp.width = size; tmp.height = size;

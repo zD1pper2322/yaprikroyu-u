@@ -39,7 +39,7 @@ Object.assign(Art, {
       c.fillStyle = '#fff'; [[8, 8], [11.5, 7], [13, 9.5]].forEach(([x, y]) => { c.beginPath(); c.arc(x, y, 0.9, 0, 7); c.fill(); });
     });
     this.sprites = {
-      tufts: [tuft(['#5fae32', '#7cc843', '#4c9a2a'], 6, 11), tuft(['#6cbf3a', '#8fd655', '#58a52f'], 5, 9), tuft(['#4f9e2c', '#78c240'], 7, 13)],
+      tufts: [tuft(['#5f9a16', '#7cb424', '#4c8a12'], 6, 11), tuft(['#6aa61c', '#94cc34', '#5a9614'], 5, 9), tuft(['#4f8e14', '#78b020'], 7, 13)],
       flowers: [flowers('#ffffff'), flowers('#ff7aa8'), flowers('#ffd23f'), flowers('#b39ddb')],
       rock, shroom,
     };
@@ -70,14 +70,17 @@ Object.assign(Art, {
     const T = TILE, x = -7.5 * T, y = -7.5 * T, w = 6.9 * T, h = 12.6 * T;
     ctx.fillStyle = '#e6cf98'; ctx.beginPath(); ctx.roundRect(x + 10, y + 10, w + 4, h + 4, 46); ctx.fill();          // песок
     ctx.fillStyle = '#d4b97a'; ctx.beginPath(); ctx.roundRect(x + 6, y + 6, w + 2, h + 2, 44); ctx.fill();
+    // бирюзовая вода как в Hay Day: глубже — темнее, у берега светлее
     const g = ctx.createLinearGradient(x, y, x + w, y + h * 0.5);
-    g.addColorStop(0, '#1f78b4'); g.addColorStop(0.55, '#3d9ad6'); g.addColorStop(1, '#69c3ea');
+    g.addColorStop(0, '#1d6a7c'); g.addColorStop(0.5, '#2f8ea0'); g.addColorStop(1, '#55b4bd');
     ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect(x, y, w, h, 40); ctx.fill();
     // мелководье у берега
-    ctx.strokeStyle = '#8fdcf4aa'; ctx.lineWidth = 14; ctx.beginPath(); ctx.roundRect(x + 7, y + 7, w - 14, h - 14, 34); ctx.stroke();
+    ctx.strokeStyle = '#86d3d0aa'; ctx.lineWidth = 16; ctx.beginPath(); ctx.roundRect(x + 7, y + 7, w - 14, h - 14, 34); ctx.stroke();
     ctx.strokeStyle = '#ffffffcc'; ctx.lineWidth = 3; ctx.setLineDash([18, 10]); ctx.lineDashOffset = -time * 12;
     ctx.beginPath(); ctx.roundRect(x + 3, y + 3, w - 6, h - 6, 38); ctx.stroke(); ctx.setLineDash([]);
     // рябь и блики солнца
+    // мягкие отражения неба — светлые размытые полосы
+    for(let i = 0; i < 6; i++){ const sx = x + 40 + i * (w - 80) / 5, sy = y + 60 + ((i * 97) % (h - 120)); const rg = ctx.createRadialGradient(sx, sy, 0, sx, sy, 90); rg.addColorStop(0, 'rgba(200,240,240,0.28)'); rg.addColorStop(1, 'rgba(200,240,240,0)'); ctx.fillStyle = rg; ctx.beginPath(); ctx.ellipse(sx, sy, 110, 50, 0.8, 0, 7); ctx.fill(); }
     const r = rnd(31);
     for(let i = 0; i < 16; i++){
       const wx = x + 20 + r() * (w - 60), wy = y + 20 + r() * (h - 40), ph = time * 1.4 + i;

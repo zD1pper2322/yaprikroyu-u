@@ -201,7 +201,7 @@ Art.lighting = function(ctx, W, H){
   ctx.save();
   ctx.globalCompositeOperation = 'soft-light';
   const g = ctx.createRadialGradient(W * 0.15, -H * 0.15, 0, W * 0.15, -H * 0.15, Math.hypot(W, H) * 1.15);
-  g.addColorStop(0, `rgba(255,236,170,${0.75 * (1 - n)})`); g.addColorStop(0.55, `rgba(255,220,150,${0.25 * (1 - n)})`); g.addColorStop(1, 'rgba(20,40,90,0.35)');
+  g.addColorStop(0, `rgba(255,240,180,${0.38 * (1 - n)})`); g.addColorStop(0.6, `rgba(255,230,160,${0.1 * (1 - n)})`); g.addColorStop(1, 'rgba(40,60,90,0.12)');
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   if(s > 0){ ctx.fillStyle = `rgba(255,120,60,${0.55 * s})`; ctx.fillRect(0, 0, W, H); }
   if(n > 0){
@@ -211,7 +211,7 @@ Art.lighting = function(ctx, W, H){
   }
   ctx.globalCompositeOperation = 'source-over';
   const v = ctx.createRadialGradient(W / 2, H * 0.45, Math.min(W, H) * 0.45, W / 2, H * 0.45, Math.hypot(W, H) * 0.7);
-  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, `rgba(10,25,10,${0.22 + n * 0.15})`);
+  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, `rgba(10,25,10,${0.1 + n * 0.2})`);
   ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
   ctx.restore();
 };

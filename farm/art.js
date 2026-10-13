@@ -11,34 +11,39 @@ const Art = {
   soilPattern: null,
 
   init(ctx){
-    // Трава: сочная, с травинками, бликами и редкими цветочками.
-    const Q = 4;   // текстуры в 4× — трава и земля чёткие на любом экране
-    const g = document.createElement('canvas'); g.width = g.height = 256 * Q;
-    const c = g.getContext('2d'); c.scale(Q, Q);
-    c.fillStyle = '#86cc45'; c.fillRect(0, 0, 256, 256);
-    const r = rnd(7);
-    for(let i = 0; i < 30; i++){ c.fillStyle = r() < 0.5 ? '#92d652' : '#7bc23d'; c.beginPath(); c.ellipse(r() * 256, r() * 256, 14 + r() * 26, 8 + r() * 14, r() * 3, 0, 7); c.fill(); }
-    for(let i = 0; i < 900; i++){
-      const x = r() * 256, y = r() * 256, h = 3 + r() * 7;
-      c.strokeStyle = ['#6fb534', '#9be05c', '#78bf3a', '#a9e86a'][i % 4];
-      c.lineWidth = 1.5;
-      c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + (r() - 0.5) * 3, y - h / 2, x + (r() - 0.5) * 4, y - h); c.stroke();
-    }
-    for(let i = 0; i < 18; i++){ c.fillStyle = ['#ffffff', '#ffe066', '#ff9ec4', '#b8a6ff'][i % 4]; const x = r() * 256, y = r() * 256; for(let k = 0; k < 4; k++){ c.beginPath(); c.arc(x + Math.cos(k * 1.57) * 1.8, y + Math.sin(k * 1.57) * 1.8, 1.5, 0, 7); c.fill(); } c.fillStyle = '#ffcc33'; c.beginPath(); c.arc(x, y, 1, 0, 7); c.fill(); }
-    this.grassPattern = ctx.createPattern(g, 'repeat'); this.grassPattern.setTransform(new DOMMatrix().scale(1 / Q));
-    // Трава за пределами хутора — темнее, «ниже».
-    const g2 = document.createElement('canvas'); g2.width = g2.height = 128 * Q;
-    const c2 = g2.getContext('2d'); c2.scale(Q, Q); c2.fillStyle = '#5fa834'; c2.fillRect(0, 0, 128, 128);
-    const r3 = rnd(5);
-    for(let i = 0; i < 300; i++){ const x = r3() * 128, y = r3() * 128; c2.strokeStyle = r3() < 0.5 ? '#52962b' : '#6cb83c'; c2.lineWidth = 1.4; c2.beginPath(); c2.moveTo(x, y); c2.lineTo(x + (r3() - 0.5) * 3, y - 3 - r3() * 5); c2.stroke(); }
-    this.outerPattern = ctx.createPattern(g2, 'repeat'); this.outerPattern.setTransform(new DOMMatrix().scale(1 / Q));
+    // Трава как в Hay Day: сочная, «нарисованная» — мягкие пятна светлее и темнее, кустистые
+    // мазки травинок, светлые блики. Плитка 512 и бесшовная (пятна заворачиваются через край).
+    const Q = 2, S = 512;
+    const paintGrass = (base, light, dark, blades, seed, flowers) => {
+      const cv = document.createElement('canvas'); cv.width = cv.height = S * Q;
+      const c = cv.getContext('2d'); c.scale(Q, Q);
+      c.fillStyle = base; c.fillRect(0, 0, S, S);
+      const r = rnd(seed);
+      const wrap = fn => { for(const ox of [-S, 0, S]) for(const oy of [-S, 0, S]) fn(ox, oy); };
+      const blob = (x, y, rad, col, a) => wrap((ox, oy) => { const g = c.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, rad); g.addColorStop(0, col.replace('A', a)); g.addColorStop(1, col.replace('A', 0)); c.fillStyle = g; c.beginPath(); c.arc(x + ox, y + oy, rad, 0, 7); c.fill(); });
+      for(let i = 0; i < 26; i++) blob(r() * S, r() * S, 70 + r() * 110, dark, 0.32);
+      for(let i = 0; i < 26; i++) blob(r() * S, r() * S, 60 + r() * 100, light, 0.34);
+      // кустистые мазки: пучки из нескольких травинок
+      for(let i = 0; i < 1300; i++){
+        const x = r() * S, y = r() * S, n = 3 + Math.floor(r() * 3), col = blades[Math.floor(r() * blades.length)];
+        c.strokeStyle = col; c.lineWidth = 1.6 + r() * 0.8; c.lineCap = 'round';
+        for(let k = 0; k < n; k++){ const dx = (k - n / 2) * 1.6, h = 4 + r() * 6; wrap((ox, oy) => { if(x + ox < -12 || x + ox > S + 12 || y + oy < -12 || y + oy > S + 12) return; c.beginPath(); c.moveTo(x + dx + ox, y + oy); c.quadraticCurveTo(x + dx + ox + (r() - 0.5) * 2, y + oy - h * 0.6, x + dx * 1.6 + ox + (r() - 0.5) * 3, y + oy - h); c.stroke(); }); }
+      }
+      // солнечные блики на траве
+      for(let i = 0; i < 160; i++){ const x = r() * S, y = r() * S; c.fillStyle = 'rgba(232,248,120,0.3)'; c.beginPath(); c.ellipse(x, y, 3 + r() * 4, 1.5 + r() * 2, r() * 3, 0, 7); c.fill(); }
+      if(flowers) for(let i = 0; i < 14; i++){ c.fillStyle = ['#ffffff', '#ffe066', '#ff9ec4', '#b8a6ff'][i % 4]; const x = 10 + r() * (S - 20), y = 10 + r() * (S - 20); for(let k = 0; k < 5; k++){ c.beginPath(); c.arc(x + Math.cos(k * 1.256) * 1.8, y + Math.sin(k * 1.256) * 1.8, 1.4, 0, 7); c.fill(); } c.fillStyle = '#ffcc33'; c.beginPath(); c.arc(x, y, 1, 0, 7); c.fill(); }
+      const pat = ctx.createPattern(cv, 'repeat'); pat.setTransform(new DOMMatrix().scale(1 / Q)); return pat;
+    };
+    this.grassPattern = paintGrass('#8fc62c', 'rgba(188,226,62,A)', 'rgba(66,118,14,A)', ['#73a91e', '#649a18', '#a2d03a', '#b6de48', '#86ba26'], 7, true);
+    // трава за пределами хутора — темнее и гуще
+    this.outerPattern = paintGrass('#6fa424', 'rgba(150,196,50,A)', 'rgba(46,90,12,A)', ['#5a8e1a', '#4c7f14', '#7fb22e', '#689c20'], 5, false);
     // Земля грядок: рыхлая, тёплая.
-    const so = document.createElement('canvas'); so.width = so.height = 64 * Q;
-    const sc = so.getContext('2d'); sc.scale(Q, Q);
+    const QS = 4, so = document.createElement('canvas'); so.width = so.height = 64 * QS;
+    const sc = so.getContext('2d'); sc.scale(QS, QS);
     sc.fillStyle = '#a5672f'; sc.fillRect(0, 0, 64, 64);
     const r2 = rnd(3);
     for(let i = 0; i < 90; i++){ sc.fillStyle = ['#8f5526', '#b8773d', '#9a5d2a', '#c58a4c'][i % 4]; sc.beginPath(); sc.arc(r2() * 64, r2() * 64, 1 + r2() * 1.8, 0, 7); sc.fill(); }
-    this.soilPattern = ctx.createPattern(so, 'repeat'); this.soilPattern.setTransform(new DOMMatrix().scale(1 / Q));
+    this.soilPattern = ctx.createPattern(so, 'repeat'); this.soilPattern.setTransform(new DOMMatrix().scale(1 / QS));
   },
 
   /* ---------- изометрия ----------
@@ -65,17 +70,21 @@ const Art = {
     ctx.fillStyle = this.outerPattern; ctx.fillRect(-3000, -3000, W + 6000, H + 6000);
     ctx.fillStyle = this.grassPattern; ctx.fillRect(0, 0, W, H);
     // «стрижка газона» — широкие светлые полосы, как на ухоженном хуторе
-    ctx.fillStyle = '#ffffff12';
+    ctx.fillStyle = 'rgba(230,250,140,0.07)';
     for(let i = 0; i < MAP_W; i += 4) ctx.fillRect(i * TILE, 0, 2 * TILE, H);
     // мягкие светлые пятна
-    const r = rnd(11); ctx.fillStyle = '#c8f08a33';
+    const r = rnd(11); ctx.fillStyle = 'rgba(200,232,80,0.18)';
     for(let i = 0; i < 26; i++){ ctx.beginPath(); ctx.ellipse(r() * W, r() * H, 40 + r() * 70, 24 + r() * 36, r() * 3, 0, 7); ctx.fill(); }
-    // дорога с обочиной и колеёй
-    ctx.fillStyle = '#b8935a'; ctx.beginPath(); ctx.roundRect(-3000, 6 * TILE + 2, 3000 + 4 * TILE + 4, 2 * TILE - 4, 14); ctx.fill();
-    ctx.fillStyle = '#e2c084'; ctx.beginPath(); ctx.roundRect(-3000, 6 * TILE + 7, 3000 + 4 * TILE, 2 * TILE - 14, 12); ctx.fill();
-    ctx.fillStyle = '#cfa96a'; ctx.fillRect(-3000, 6 * TILE + 20, 3000 + 4 * TILE - 8, 6); ctx.fillRect(-3000, 8 * TILE - 26, 3000 + 4 * TILE - 8, 6);
-    const r4 = rnd(9); ctx.fillStyle = '#a88a5a';
-    for(let i = 0; i < 40; i++){ ctx.beginPath(); ctx.arc(-1200 + r4() * (1200 + 4 * TILE), 6 * TILE + 10 + r4() * (2 * TILE - 20), 1.5 + r4() * 2, 0, 7); ctx.fill(); }
+    // грунтовая дорога: тёплая земля, колея, камешки, трава по краям
+    const RX = -3000, RW = 3000 + 4 * TILE, RY = 6 * TILE, RH = 2 * TILE;
+    ctx.fillStyle = '#a77a48'; ctx.beginPath(); ctx.roundRect(RX, RY + 1, RW + 4, RH - 2, 16); ctx.fill();
+    const rg = ctx.createLinearGradient(0, RY, 0, RY + RH); rg.addColorStop(0, '#d7a86c'); rg.addColorStop(0.5, '#e6bd84'); rg.addColorStop(1, '#cf9d60');
+    ctx.fillStyle = rg; ctx.beginPath(); ctx.roundRect(RX, RY + 6, RW, RH - 12, 14); ctx.fill();
+    ctx.fillStyle = 'rgba(150,100,55,0.35)'; ctx.fillRect(RX, RY + 22, RW - 10, 9); ctx.fillRect(RX, RY + RH - 31, RW - 10, 9);
+    const r4 = rnd(9);
+    for(let i = 0; i < 140; i++){ const x = -1400 + r4() * (1400 + 4 * TILE), y = RY + 8 + r4() * (RH - 16); ctx.fillStyle = ['#b98c58', '#f1d29c', '#9c7446'][i % 3]; ctx.beginPath(); ctx.ellipse(x, y, 1.5 + r4() * 3, 1 + r4() * 2, r4() * 3, 0, 7); ctx.fill(); }
+    ctx.strokeStyle = '#7fbf3c'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    for(let x = -1400; x < 4 * TILE; x += 9){ const h = 3 + r4() * 6; [RY + 4, RY + RH - 4].forEach((yy, k) => { ctx.beginPath(); ctx.moveTo(x, yy); ctx.lineTo(x + (r4() - 0.5) * 3, yy + (k ? -h : h)); ctx.stroke(); }); }
   },
   // Обрыв по переднему краю хутора — хутор стоит «на холме».
   cliff(ctx){
@@ -123,9 +132,14 @@ const Art = {
     ctx.fillStyle = '#00000022'; ctx.beginPath(); ctx.roundRect(x + 4, y + 8, w + 8, h + 6, 16); ctx.fill();
   },
   penFlat(ctx, x, y, w, h){
-    ctx.fillStyle = '#c3d98a'; ctx.beginPath(); ctx.roundRect(x + 2, y + 2, w - 4, h - 4, 12); ctx.fill();
-    const r = rnd(w * 7 + h); ctx.fillStyle = '#afc777';
-    for(let i = 0; i < 40; i++){ ctx.beginPath(); ctx.arc(x + 10 + r() * (w - 20), y + 10 + r() * (h - 20), 3 + r() * 5, 0, 7); ctx.fill(); }
+    // загон: утоптанная трава с проплешинами земли и соломой
+    ctx.fillStyle = '#9cc63a'; ctx.beginPath(); ctx.roundRect(x + 2, y + 2, w - 4, h - 4, 12); ctx.fill();
+    const r = rnd(w * 7 + h);
+    for(let i = 0; i < 9; i++){ const cx = x + 20 + r() * (w - 40), cy = y + 20 + r() * (h - 40), rr = 18 + r() * 26; const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rr); g.addColorStop(0, 'rgba(196,160,98,0.75)'); g.addColorStop(1, 'rgba(196,160,98,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, rr, 0, 7); ctx.fill(); }
+    ctx.strokeStyle = '#e3c66a'; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+    for(let i = 0; i < 70; i++){ const sx = x + 8 + r() * (w - 16), sy = y + 8 + r() * (h - 16), a = r() * 3; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + Math.cos(a) * 7, sy + Math.sin(a) * 7); ctx.stroke(); }
+    ctx.strokeStyle = '#86bf3f'; ctx.lineWidth = 1.8;
+    for(let i = 0; i < 90; i++){ const sx = x + 6 + r() * (w - 12), sy = y + 6 + r() * (h - 12); ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + (r() - 0.5) * 3, sy - 4 - r() * 4); ctx.stroke(); }
   },
   pondFlat(ctx, x, y, w, h){
     ctx.fillStyle = '#7fb85a'; ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, 7); ctx.fill();

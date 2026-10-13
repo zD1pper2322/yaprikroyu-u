@@ -21,10 +21,12 @@ function bricksTex(col, rx, ry){ return tex('br' + col, 128, 128, (c, w, h) => {
 function stoneTex(rx, ry){ return tex('st', 128, 128, (c, w, h) => { c.fillStyle = '#b8b0a2'; c.fillRect(0, 0, w, h); for(let r = 0; r < 4; r++) for(let i = 0; i < 4; i++){ c.fillStyle = shade('#cfc7b8', 0.9 + ((i + r * 2) % 4) * 0.05); c.beginPath(); c.roundRect(i * 32 + (r % 2) * 10 + 2, r * 32 + 2, 28, 28, 6); c.fill(); } }, rx, ry); }
 function soilTex(){ return tex('soil', 128, 128, (c, w, h) => { c.fillStyle = '#8a5428'; c.fillRect(0, 0, w, h); for(let i = 0; i < 400; i++){ c.fillStyle = ['#7a4520', '#9c6534', '#6b3c1a', '#a8723f'][i % 4]; c.beginPath(); c.arc((i * 73) % w, (i * 151) % h, 1 + (i % 3), 0, 7); c.fill(); } }); }
 const MAT = new Map();
+// Лёгкое «зерно» на всех поверхностях — как нарисованные текстуры, а не пластик.
+function grainTex(){ return tex('grain', 128, 128, (c, w, h) => { const im = c.createImageData(w, h); for(let i = 0; i < w * h; i++){ const v = 222 + Math.floor(Math.random() * 34); im.data[i * 4] = v; im.data[i * 4 + 1] = v; im.data[i * 4 + 2] = v; im.data[i * 4 + 3] = 255; } c.putImageData(im, 0, 0); c.globalAlpha = 0.25; for(let i = 0; i < 40; i++){ c.fillStyle = Math.random() < 0.5 ? '#ffffff' : '#cfcfcf'; c.beginPath(); c.arc(Math.random() * w, Math.random() * h, 4 + Math.random() * 10, 0, 7); c.fill(); } }, 2, 2); }
 function mat(col, o = {}){
   const k = col + JSON.stringify(o);
   if(MAT.has(k) && !o.map) return MAT.get(k);
-  const m = new T.MeshStandardMaterial({ color: col, roughness: o.r ?? 0.78, metalness: o.m ?? 0, map: o.map || null, transparent: o.op !== undefined, opacity: o.op ?? 1, emissive: o.em || 0x000000, emissiveIntensity: o.emi ?? 1, flatShading: !!o.flat, side: o.side || T.FrontSide });
+  const m = new T.MeshStandardMaterial({ color: col, roughness: o.r ?? 0.78, metalness: o.m ?? 0, map: o.map || (o.op !== undefined || o.noGrain ? null : grainTex()), transparent: o.op !== undefined, opacity: o.op ?? 1, emissive: o.em || 0x000000, emissiveIntensity: o.emi ?? 1, flatShading: !!o.flat, side: o.side || T.FrontSide });
   if(!o.map) MAT.set(k, m); return m;
 }
 const g = () => new T.Group();
@@ -214,24 +216,65 @@ MODELS.silo.build = function(){ const p = g();
   return p; };
 
 /* ================= деревья и кусты ================= */
-function canopy(p, x, y, z, R, cols, seed){
+// Листва как в Hay Day: плотные «шапки» из сотен листочков с мягкой тенью внутри.
+function leafTex(){ return tex('leaf', 128, 128, (c, w, h) => {
+  c.clearRect(0, 0, w, h);
+  const leaf = (x, y, r, a, col) => { c.save(); c.translate(x, y); c.rotate(a); c.fillStyle = col; c.beginPath(); c.moveTo(0, -r); c.quadraticCurveTo(r * 0.75, -r * 0.2, 0, r); c.quadraticCurveTo(-r * 0.75, -r * 0.2, 0, -r); c.fill(); c.strokeStyle = 'rgba(0,0,0,0.18)'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(0, -r * 0.8); c.lineTo(0, r * 0.8); c.stroke(); c.restore(); };
+  let sd = 11; const r = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  for(let i = 0; i < 46; i++){ const a = r() * Math.PI * 2, d = Math.sqrt(r()) * 40; const v = 175 + Math.floor(r() * 80); leaf(64 + Math.cos(a) * d, 64 + Math.sin(a) * d, 13 + r() * 9, r() * Math.PI * 2, `rgb(${v},${v},${v})`); }
+}); }
+const LEAFMAT = new Map();
+function leafMat(col){
+  if(LEAFMAT.has(col)) return LEAFMAT.get(col);
+  const map = leafTex();
+  const m = new T.MeshStandardMaterial({ color: col, map, alphaTest: 0.5, side: T.DoubleSide, roughness: 0.85 });
+  const dm = new T.MeshDepthMaterial({ depthPacking: T.RGBADepthPacking, map, alphaTest: 0.5 });
+  LEAFMAT.set(col, [m, dm]); return [m, dm];
+}
+function canopy(p, x, y, z, R, cols, seed, density = 1){
   let s = seed || 1; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
   const blobs = [[0, 0, 0, 1], [0.55, -0.15, 0.2, 0.75], [-0.5, -0.1, 0.25, 0.75], [0.1, 0.35, 0.1, 0.7], [0.2, -0.2, -0.5, 0.7], [-0.25, 0.1, -0.4, 0.65], [0.0, -0.3, 0.55, 0.7]];
-  blobs.forEach(([dx, dy, dz, rr], i) => add(p, new T.IcosahedronGeometry(R * rr, 3), mat(cols[i % cols.length], { r: 0.9 }), x + dx * R, y + dy * R, z + dz * R, rnd(), rnd(), 0));
+  // тёмная серединка, чтобы между листьями не просвечивало
+  blobs.forEach(([dx, dy, dz, rr]) => add(p, new T.IcosahedronGeometry(R * rr * 0.84, 2), mat(shade(cols[1] || cols[0], 0.86), { r: 1, noGrain: true }), x + dx * R, y + dy * R, z + dz * R));
+  const card = new T.PlaneGeometry(1, 1);
+  blobs.forEach(([dx, dy, dz, rr]) => {
+    const n = Math.round(130 * rr * rr * density);
+    for(let i = 0; i < n; i++){
+      const u = rnd() * 2 - 1, th = rnd() * Math.PI * 2, rr2 = Math.sqrt(1 - u * u);
+      const nx = rr2 * Math.cos(th), ny = u, nz = rr2 * Math.sin(th);
+      const r0 = R * rr * (0.86 + rnd() * 0.2);
+      // сверху и на солнце листья светлее
+      const light = ny * 0.6 - nx * 0.25 + rnd() * 0.3;
+      const col = light > 0.45 ? cols[3] || cols[2] : light > 0.05 ? cols[2] || cols[0] : light > -0.35 ? cols[0] : cols[1] || cols[0];
+      const [m, dm] = leafMat(col);
+      const o = new T.Mesh(card, m); o.customDepthMaterial = dm;
+      const sz = R * rr * (0.34 + rnd() * 0.18);
+      o.scale.set(sz, sz, sz);
+      o.position.set(x + dx * R + nx * r0, y + dy * R + ny * r0, z + dz * R + nz * r0);
+      o.lookAt(o.position.x + nx, o.position.y + ny, o.position.z + nz);
+      o.rotateZ(rnd() * Math.PI * 2); o.rotateX((rnd() - 0.5) * 0.9);
+      p.add(o);
+    }
+  });
 }
 function oak(p, apples){
   add(p, cyl(0.1, 0.16, 1.0, 12), mat('#9a6236'), 0, 0.5, 0);
   add(p, cyl(0.04, 0.06, 0.45, 8), mat('#9a6236'), 0.18, 0.85, 0, 0, 0, -0.7);
-  canopy(p, 0, 1.45, 0, 0.62, ['#3e9a3a', '#2f8a34', '#4caf3a', '#358f36'], 7);
-  if(apples) [[0.55, 1.3, 0.45], [-0.25, 1.25, 0.62], [0.15, 1.8, 0.55], [0.7, 1.6, 0.05], [-0.55, 1.55, 0.35], [0.3, 1.05, 0.6], [0.05, 1.45, 0.75], [0.65, 1.1, 0.4]].forEach(([ax, ay, az]) => add(p, sph(0.085, 14, 10), mat('#e02b2b', { r: 0.3 }), ax, ay, az));
+  canopy(p, 0, 1.45, 0, 0.62, ['#62b034', '#428c29', '#8fcb44', '#bfe35e'], 7);
+  if(apples) [[0.55, 1.3, 0.45], [-0.25, 1.25, 0.62], [0.15, 1.8, 0.55], [0.7, 1.6, 0.05], [-0.55, 1.55, 0.35], [0.3, 1.05, 0.6], [0.05, 1.45, 0.75], [0.65, 1.1, 0.4]].forEach(([ax, ay, az]) => add(p, sph(0.085, 14, 10), mat('#e02b2b', { r: 0.3 }), ax * 1.2, 1.45 + (ay - 1.45) * 1.15, az * 1.2));
 }
 MODELS.tree = { anchor: [0, 0], build(){ const p = g(); oak(p, true); return p; } };
 MODELS.oak = { anchor: [0, 0], build(){ const p = g(); oak(p, false); return p; } };
 MODELS.pine = { anchor: [0, 0], build(){ const p = g();
   add(p, cyl(0.08, 0.12, 0.6, 10), mat('#6b4220'), 0, 0.3, 0);
-  [[0.75, 0.9, 0.45], [0.6, 0.8, 0.95], [0.45, 0.7, 1.4], [0.3, 0.55, 1.8]].forEach(([r, h, y], i) => add(p, cone(r, h, 18), mat(['#2f7d3c', '#2a7337', '#348a42', '#3a9649'][i], { r: 0.9 }), 0, y, 0));
+  const needles = tex('needles', 128, 128, (c, w, h) => { c.fillStyle = '#ffffff'; c.fillRect(0, 0, w, h); for(let i = 0; i < 700; i++){ const x = Math.random() * w, y = Math.random() * h; c.strokeStyle = ['#cfd8c8', '#e8f0e0', '#b8c4b0'][i % 3]; c.lineWidth = 1.5; c.beginPath(); c.moveTo(x, y); c.lineTo(x + (Math.random() - 0.5) * 6, y + 8); c.stroke(); } }, 3, 2);
+  [[0.78, 0.9, 0.45], [0.63, 0.8, 0.95], [0.47, 0.7, 1.4], [0.31, 0.55, 1.8]].forEach(([r, h, y], i) => {
+    const geo = new T.ConeGeometry(r, h, 28, 3); const pos = geo.attributes.position;
+    for(let k = 0; k < pos.count; k++){ const py = pos.getY(k); if(py < h / 2 - 0.01){ const a = Math.atan2(pos.getZ(k), pos.getX(k)), j = 1 + Math.sin(a * 14) * 0.07 + Math.sin(a * 5 + i) * 0.05; pos.setX(k, pos.getX(k) * j); pos.setZ(k, pos.getZ(k) * j); if(py < -h / 2 + 0.01) pos.setY(k, py - Math.abs(Math.sin(a * 7)) * 0.08); } }
+    geo.computeVertexNormals();
+    add(p, geo, mat(['#2f7d3c', '#2a7337', '#348a42', '#3f9a4c'][i], { r: 0.9, map: needles }), 0, y, 0); });
   return p; } };
-MODELS.bush = { anchor: [0, 0], build(){ const p = g(); canopy(p, 0, 0.28, 0, 0.3, ['#3b9a3c', '#2f8a34', '#56b448'], 3); [[0.2, 0.4, 0.2], [-0.15, 0.5, 0.18], [0.05, 0.6, -0.1]].forEach(([x, y, z]) => add(p, sph(0.045, 10, 8), mat('#ff6b9a'), x, y, z)); return p; } };
+MODELS.bush = { anchor: [0, 0], build(){ const p = g(); canopy(p, 0, 0.3, 0, 0.32, ['#62b034', '#428c29', '#8fcb44', '#bfe35e'], 3, 0.8); [[0.2, 0.4, 0.2], [-0.15, 0.5, 0.18], [0.05, 0.6, -0.1]].forEach(([x, y, z]) => add(p, sph(0.045, 10, 8), mat('#ff6b9a'), x, y, z)); return p; } };
 
 /* ================= животные (смотрят в сторону +x) ================= */
 MODELS.chicken = { anchor: [0, 0], shadowOpacity: 0.3, build(){ const p = g(), W = mat('#fffdf8', { r: 0.95 });
