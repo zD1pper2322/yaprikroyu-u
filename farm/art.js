@@ -32,57 +32,229 @@ const Art = {
     this.soilPattern = ctx.createPattern(so, 'repeat');
   },
 
-  /* ---------- земля ---------- */
-  ground(ctx){
-    const W = MAP_W * TILE, H = MAP_H * TILE;
-    ctx.fillStyle = '#5f9e3c'; ctx.fillRect(-2000, -2000, W + 4000, H + 4000);   // за забором
-    ctx.fillStyle = this.grassPattern; ctx.fillRect(0, 0, W, H);
-    // дорога к доске заказов
-    ctx.fillStyle = '#d9b67a';
-    ctx.beginPath(); ctx.roundRect(-2000, 6.2 * TILE, 2000 + 4 * TILE, 1.6 * TILE, 10); ctx.fill();
-    ctx.fillStyle = '#c9a265';
-    for(let x = -1980; x < 4 * TILE; x += 60) ctx.fillRect(x, 6.95 * TILE, 26, 3);
-    // забор
-    this.fence(ctx, 0, 0, W, H, true);
+  /* ---------- изометрия ----------
+     Земля хранится в «плоских» координатах (клетка = TILE px), на экран
+     проецируется как ромб: X = x − y, Y = (x + y) / 2. */
+  P(x, y){ return { x: x - y, y: (x + y) / 2 }; },
+  up(p, h){ return { x: p.x, y: p.y - h }; },
+  poly(ctx, pts, fill, stroke){
+    ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath();
+    if(fill){ ctx.fillStyle = fill; ctx.fill(); }
+    if(stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke(); }
   },
-  fence(ctx, x, y, w, h, gate){
-    ctx.save();
-    ctx.strokeStyle = '#8b5a2b'; ctx.lineWidth = 5; ctx.lineCap = 'round';
-    const rail = (x1, y1, x2, y2) => { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); };
-    rail(x, y + 8, x + w, y + 8); rail(x, y + h - 4, x + w, y + h - 4);
-    if(gate){ rail(x, y + 8, x, 6 * TILE); rail(x, 8 * TILE, x, y + h); }
-    else { rail(x, y + 8, x, y + h); }
-    rail(x + w, y + 8, x + w, y + h);
-    ctx.fillStyle = '#a06a35';
-    const post = (px, py) => { ctx.fillRect(px - 4, py - 10, 8, 18); };
-    for(let px = x; px <= x + w; px += TILE) { post(px, y + 8); post(px, y + h - 4); }
-    for(let py = y + TILE; py < y + h; py += TILE){ if(!gate || py < 6 * TILE || py > 8 * TILE) post(x, py); post(x + w, py); }
-    ctx.restore();
+  shade(hex, k){
+    const n = parseInt(hex.slice(1), 16);
+    const f = c => Math.max(0, Math.min(255, Math.round(c * k)));
+    return '#' + [f(n >> 16), f(n >> 8 & 255), f(n & 255)].map(v => v.toString(16).padStart(2, '0')).join('');
   },
 
-  /* ---------- грядка и урожай ---------- */
-  plot(ctx, x, y, size, crop, pct, ready, seed, highlight){
-    const pad = 4;
-    ctx.fillStyle = '#6e4723';
-    ctx.beginPath(); ctx.roundRect(x + pad, y + pad + 4, size - pad * 2, size - pad * 2, 12); ctx.fill();
-    ctx.fillStyle = this.soilPattern;
-    ctx.beginPath(); ctx.roundRect(x + pad, y + pad, size - pad * 2, size - pad * 2, 12); ctx.fill();
-    ctx.strokeStyle = '#7d5128'; ctx.lineWidth = 3;
-    for(let i = 1; i < 4; i++){ const yy = y + pad + (size - pad * 2) * i / 4; ctx.beginPath(); ctx.moveTo(x + pad + 8, yy); ctx.lineTo(x + size - pad - 8, yy); ctx.stroke(); }
-    if(highlight){ ctx.strokeStyle = highlight; ctx.lineWidth = 4; ctx.beginPath(); ctx.roundRect(x + pad, y + pad, size - pad * 2, size - pad * 2, 12); ctx.stroke(); }
-    if(!crop) return;
-    const stage = ready ? 3 : pct < 0.33 ? 0 : pct < 0.66 ? 1 : 2;
-    const r = rnd(seed * 31 + 7);
-    const cols = 4, rows = 3;
-    for(let j = 0; j < rows; j++) for(let i = 0; i < cols; i++){
-      const cx = x + pad + 12 + i * (size - pad * 2 - 24) / (cols - 1) + (r() - 0.5) * 6;
-      const cy = y + pad + 22 + j * (size - pad * 2 - 34) / (rows - 1) + (r() - 0.5) * 4;
-      this.crop(ctx, crop, stage, cx, cy, r);
+  /* ---------- земля (рисуется в плоскости) ---------- */
+  groundFlat(ctx){
+    const W = MAP_W * TILE, H = MAP_H * TILE;
+    ctx.fillStyle = '#5c9a3a'; ctx.fillRect(-3000, -3000, W + 6000, H + 6000);
+    ctx.fillStyle = this.grassPattern; ctx.fillRect(0, 0, W, H);
+    // тропинки-«проплешины» для живости
+    const r = rnd(11); ctx.fillStyle = '#8bcf5e66';
+    for(let i = 0; i < 18; i++){ ctx.beginPath(); ctx.ellipse(r() * W, r() * H, 30 + r() * 60, 18 + r() * 30, r() * 3, 0, 7); ctx.fill(); }
+    // дорога
+    ctx.fillStyle = '#d9b67a'; ctx.beginPath(); ctx.roundRect(-3000, 6 * TILE + 6, 3000 + 4 * TILE, 2 * TILE - 12, 12); ctx.fill();
+    ctx.fillStyle = '#c9a265'; for(let x = -2980; x < 4 * TILE; x += 70) ctx.fillRect(x, 7 * TILE - 2, 30, 4);
+  },
+  plotFlat(ctx, x, y, size, ready, highlight){
+    const pad = 5;
+    ctx.fillStyle = '#5e3c1e'; ctx.beginPath(); ctx.roundRect(x + pad + 3, y + pad + 3, size - pad * 2, size - pad * 2, 14); ctx.fill();
+    ctx.fillStyle = this.soilPattern; ctx.beginPath(); ctx.roundRect(x + pad, y + pad, size - pad * 2, size - pad * 2, 14); ctx.fill();
+    ctx.strokeStyle = '#7d5128'; ctx.lineWidth = 4;
+    for(let i = 1; i < 4; i++){ const yy = y + pad + (size - pad * 2) * i / 4; ctx.beginPath(); ctx.moveTo(x + pad + 10, yy); ctx.lineTo(x + size - pad - 10, yy); ctx.stroke(); }
+    if(ready){ ctx.strokeStyle = '#ffd84a'; ctx.lineWidth = 4; ctx.beginPath(); ctx.roundRect(x + pad, y + pad, size - pad * 2, size - pad * 2, 14); ctx.stroke(); }
+    if(highlight){ ctx.strokeStyle = highlight; ctx.lineWidth = 5; ctx.beginPath(); ctx.roundRect(x + pad, y + pad, size - pad * 2, size - pad * 2, 14); ctx.stroke(); }
+  },
+  shadowFlat(ctx, x, y, w, h){
+    ctx.fillStyle = '#00000026'; ctx.beginPath(); ctx.roundRect(x + 6, y + 10, w + 6, h + 4, 16); ctx.fill();
+  },
+  penFlat(ctx, x, y, w, h){
+    ctx.fillStyle = '#c3d98a'; ctx.beginPath(); ctx.roundRect(x + 2, y + 2, w - 4, h - 4, 12); ctx.fill();
+    const r = rnd(w * 7 + h); ctx.fillStyle = '#afc777';
+    for(let i = 0; i < 40; i++){ ctx.beginPath(); ctx.arc(x + 10 + r() * (w - 20), y + 10 + r() * (h - 20), 3 + r() * 5, 0, 7); ctx.fill(); }
+  },
+  pondFlat(ctx, x, y, w, h){
+    ctx.fillStyle = '#7fb85a'; ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#4fa8dc'; ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w / 2 - 10, h / 2 - 10, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#6fc0ea'; ctx.beginPath(); ctx.ellipse(x + w / 2 - 8, y + h / 2 - 6, w / 2 - 26, h / 2 - 22, 0, 0, 7); ctx.fill();
+  },
+
+  /* ---------- вертикальные элементы ---------- */
+  fenceLine(ctx, ax, ay, bx, by, gap){
+    const len = Math.hypot(bx - ax, by - ay), n = Math.max(1, Math.round(len / TILE));
+    const pts = [];
+    for(let i = 0; i <= n; i++){ const gx = ax + (bx - ax) * i / n, gy = ay + (by - ay) * i / n; pts.push({ gx, gy, p: this.P(gx, gy) }); }
+    const skip = (a) => gap && a.gy > gap[0] && a.gy < gap[1] && a.gx < 2;
+    ctx.lineCap = 'round';
+    for(let i = 0; i < n; i++){
+      if(skip(pts[i]) || skip(pts[i + 1])) continue;
+      const a = pts[i].p, b = pts[i + 1].p;
+      ctx.strokeStyle = '#7a4a22'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y - 8); ctx.lineTo(b.x, b.y - 8); ctx.moveTo(a.x, a.y - 18); ctx.lineTo(b.x, b.y - 18); ctx.stroke();
+      ctx.strokeStyle = '#b07a42'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y - 9); ctx.lineTo(b.x, b.y - 9); ctx.moveTo(a.x, a.y - 19); ctx.lineTo(b.x, b.y - 19); ctx.stroke();
     }
-    if(ready){ // блеск
-      const t = performance.now() / 400 + seed;
-      ctx.fillStyle = `rgba(255,255,255,${0.5 + 0.5 * Math.sin(t)})`;
-      this.star(ctx, x + size - 16, y + 14, 5);
+    pts.forEach(o => { if(skip(o)) return; ctx.fillStyle = '#8b5a2b'; ctx.fillRect(o.p.x - 3, o.p.y - 26, 6, 26); ctx.fillStyle = '#a8743d'; ctx.fillRect(o.p.x - 3, o.p.y - 26, 3, 26); });
+  },
+  // Дом-коробка: x,y,W,H — основание в плоских координатах, h — высота стен.
+  box(ctx, x, y, W, H, h, wall, roof, opts = {}){
+    const P = (a, b) => this.P(a, b), up = (p, hh) => this.up(p, hh);
+    const A = P(x, y), B = P(x + W, y), C = P(x + W, y + H), D = P(x, y + H);
+    const rh = opts.roofH ?? h * 0.7, ov = 6;
+    const wallL = wall, wallR = this.shade(wall, 0.82);
+    this.poly(ctx, [D, C, up(C, h), up(D, h)], wallL);
+    this.poly(ctx, [C, B, up(B, h), up(C, h)], wallR);
+    // основание стены — тёмная полоса
+    this.poly(ctx, [D, C, up(C, 8), up(D, 8)], this.shade(wall, 0.7));
+    this.poly(ctx, [C, B, up(B, 8), up(C, 8)], this.shade(wall, 0.6));
+    if(opts.flat){
+      this.poly(ctx, [up(A, h), up(B, h), up(C, h), up(D, h)], roof);
+      return { A, B, C, D, top: up(A, h) };
+    }
+    // двускатная крыша, конёк вдоль x
+    const R1 = up(P(x - ov, y + H / 2), h + rh), R2 = up(P(x + W + ov, y + H / 2), h + rh);
+    const a = up(P(x - ov, y - ov), h - 2), b = up(P(x + W + ov, y - ov), h - 2), c = up(P(x + W + ov, y + H + ov), h - 2), d = up(P(x - ov, y + H + ov), h - 2);
+    this.poly(ctx, [a, b, R2, R1], this.shade(roof, 0.75));
+    this.poly(ctx, [up(C, h), up(B, h), up(P(x + W, y + H / 2), h + rh)], wallR);     // фронтон
+    this.poly(ctx, [d, c, R2, R1], roof);
+    // черепица
+    ctx.strokeStyle = this.shade(roof, 0.85); ctx.lineWidth = 2;
+    for(let i = 1; i < 4; i++){ const t = i / 4; const l = { x: d.x + (R1.x - d.x) * t, y: d.y + (R1.y - d.y) * t }, r2 = { x: c.x + (R2.x - c.x) * t, y: c.y + (R2.y - c.y) * t }; ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.lineTo(r2.x, r2.y); ctx.stroke(); }
+    ctx.strokeStyle = this.shade(roof, 0.6); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(R1.x, R1.y); ctx.lineTo(R2.x, R2.y); ctx.stroke();
+    return { A, B, C, D, R1, R2 };
+  },
+  // Прямоугольник на стене +y (передняя левая): u — смещение вдоль стены (px), v — высота.
+  faceY(ctx, x, y, W, H, u0, u1, v0, v1, fill){
+    const p = (u, v) => this.up(this.P(x + u, y + H), v);
+    this.poly(ctx, [p(u0, v0), p(u1, v0), p(u1, v1), p(u0, v1)], fill);
+  },
+  faceX(ctx, x, y, W, H, u0, u1, v0, v1, fill){
+    const p = (u, v) => this.up(this.P(x + W, y + H - u), v);
+    this.poly(ctx, [p(u0, v0), p(u1, v0), p(u1, v1), p(u0, v1)], fill);
+  },
+  sign(ctx, px, py, icon, r = 17){
+    ctx.fillStyle = '#fffdf6'; ctx.strokeStyle = '#8b5a2b'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(px, py, r, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.font = `${Math.round(r * 1.2)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#000'; ctx.fillText(icon, px, py + 1);
+  },
+  factory(ctx, x, y, W, H, B, working, time){
+    const h = 62;
+    const g = this.box(ctx, x, y, W, H, h, B.wall, B.roof, { roofH: 46 });
+    // дверь и окна
+    this.faceY(ctx, x, y, W, H, W / 2 - 16, W / 2 + 16, 0, 40, '#6b4226');
+    this.faceY(ctx, x, y, W, H, W / 2 - 13, W / 2 + 13, 3, 37, '#7d5230');
+    this.faceY(ctx, x, y, W, H, 14, 40, 26, 46, '#bfe3f5');
+    this.faceY(ctx, x, y, W, H, W - 40, W - 14, 26, 46, '#bfe3f5');
+    this.faceX(ctx, x, y, W, H, 30, 60, 26, 46, '#a9d3e8');
+    // труба
+    const ch = this.up(this.P(x + W * 0.75, y + H * 0.3), h + 30);
+    ctx.fillStyle = '#8c5a3c'; ctx.fillRect(ch.x - 7, ch.y - 30, 14, 34); ctx.fillStyle = '#6e452d'; ctx.fillRect(ch.x - 9, ch.y - 34, 18, 6);
+    if(working){
+      ctx.fillStyle = '#ffffff';
+      for(let i = 0; i < 4; i++){ const p = (time * 0.5 + i / 4) % 1; ctx.globalAlpha = (1 - p) * 0.8; ctx.beginPath(); ctx.arc(ch.x + Math.sin(p * 7 + i) * 6, ch.y - 36 - p * 50, 5 + p * 8, 0, 7); ctx.fill(); }
+      ctx.globalAlpha = 1;
+    }
+    const s = this.up(this.P(x + W / 2, y + H), h + 14);
+    this.sign(ctx, s.x, s.y, B.e);
+  },
+  barn(ctx, x, y, W, H){
+    const h = 74;
+    this.box(ctx, x, y, W, H, h, '#c8442f', '#7a2a1d', { roofH: 56 });
+    this.faceY(ctx, x, y, W, H, W / 2 - 26, W / 2 + 26, 0, 54, '#f4efe4');
+    this.faceY(ctx, x, y, W, H, W / 2 - 22, W / 2 + 22, 4, 50, '#9b3424');
+    const p = (u, v) => this.up(this.P(x + u, y + H), v);
+    ctx.strokeStyle = '#f4efe4'; ctx.lineWidth = 4;
+    const a = p(W / 2 - 22, 4), b = p(W / 2 + 22, 50), c = p(W / 2 + 22, 4), d = p(W / 2 - 22, 50);
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.moveTo(c.x, c.y); ctx.lineTo(d.x, d.y); ctx.stroke();
+    this.faceX(ctx, x, y, W, H, 40, 70, 40, 60, '#f4efe4');
+    const s = this.up(this.P(x + W / 2, y + H), h + 18);
+    this.sign(ctx, s.x, s.y, '📦');
+  },
+  shelter(ctx, x, y, W, H, B){
+    this.box(ctx, x, y, W, H, 40, B.wall, B.roof, { roofH: 30 });
+    this.faceY(ctx, x, y, W, H, W / 2 - 13, W / 2 + 13, 0, 28, '#5a3820');
+    const s = this.up(this.P(x + W / 2, y + H), 54);
+    this.sign(ctx, s.x, s.y, B.e, 14);
+  },
+  trough(ctx, x, y){
+    const g = this.box(ctx, x, y, 56, 22, 12, '#8b5a2b', '#e6c35c', { flat: true });
+  },
+  board(ctx, x, y, hasDone){
+    const a = this.P(x + 20, y + 70), b = this.P(x + 76, y + 70);
+    ctx.fillStyle = '#7a4a22'; ctx.fillRect(a.x - 4, a.y - 70, 8, 70); ctx.fillRect(b.x - 4, b.y - 70, 8, 70);
+    const tl = this.up(a, 90), tr = this.up(b, 90), br = this.up(b, 48), bl = this.up(a, 48);
+    this.poly(ctx, [this.up(a, 94), this.up(b, 94), this.up(b, 44), this.up(a, 44)], '#c98f4f');
+    for(let i = 0; i < 3; i++){
+      const u0 = 0.08 + i * 0.31, u1 = u0 + 0.24;
+      const L = t => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+      this.poly(ctx, [this.up(L(u0), 86), this.up(L(u1), 86), this.up(L(u1), 54), this.up(L(u0), 54)], '#fffdf6');
+      const pin = this.up(L((u0 + u1) / 2), 84); ctx.fillStyle = '#e5533d'; ctx.beginPath(); ctx.arc(pin.x, pin.y, 3, 0, 7); ctx.fill();
+    }
+  },
+  tree(ctx, px, py, kind, time, seed){
+    const sway = Math.sin(time * 1.3 + seed) * 2.5;
+    ctx.fillStyle = '#00000022'; ctx.beginPath(); ctx.ellipse(px, py, 34, 15, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#7a4a24'; ctx.fillRect(px - 6, py - 40, 12, 40);
+    if(kind === 'tree'){
+      ctx.fillStyle = '#3f8f35'; ctx.beginPath(); ctx.arc(px + sway, py - 62, 36, 0, 7); ctx.fill();
+      ctx.fillStyle = '#56a845'; ctx.beginPath(); ctx.arc(px - 10 + sway, py - 72, 24, 0, 7); ctx.fill();
+      ctx.fillStyle = '#e5533d'; [[-16, -54], [12, -66], [6, -46], [-4, -82], [20, -52]].forEach(([dx, dy]) => { ctx.beginPath(); ctx.arc(px + dx + sway, py + dy, 4.5, 0, 7); ctx.fill(); });
+    } else {
+      ctx.fillStyle = '#2f6f3a';
+      for(let i = 0; i < 3; i++){ const yy = py - 110 + i * 26; ctx.beginPath(); ctx.moveTo(px + sway * (1 - i / 3), yy); ctx.lineTo(px + 30 + i * 6, yy + 40); ctx.lineTo(px - 30 - i * 6, yy + 40); ctx.fill(); }
+      ctx.fillStyle = '#3d8546'; ctx.beginPath(); ctx.moveTo(px + sway, py - 110); ctx.lineTo(px + 8, py - 80); ctx.lineTo(px - 18, py - 74); ctx.fill();
+    }
+  },
+  decorUp(ctx, kind, x, y, w, h, time){
+    const c = this.P(x + w / 2, y + h / 2);
+    switch(kind){
+      case 'tree': case 'pine': this.tree(ctx, c.x, c.y + 10, kind, time, x + y); break;
+      case 'flowers': case 'sunflower': {
+        const r = rnd(x * 3 + y);
+        for(let i = 0; i < 5; i++){
+          const p = this.P(x + 8 + r() * (w - 16), y + 8 + r() * (h - 16));
+          const sw = Math.sin(time * 2 + i) * 1.5;
+          ctx.strokeStyle = '#3f8f35'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + sw, p.y - (kind === 'sunflower' ? 30 : 16)); ctx.stroke();
+          ctx.fillStyle = kind === 'sunflower' ? '#ffc93a' : ['#ff6b9a', '#ffd23f', '#a78bfa', '#ff8f4a', '#fff'][i % 5];
+          const hy = p.y - (kind === 'sunflower' ? 32 : 18);
+          if(kind === 'sunflower'){ for(let k = 0; k < 8; k++){ const a = k * Math.PI / 4; ctx.beginPath(); ctx.ellipse(p.x + sw + Math.cos(a) * 6, hy + Math.sin(a) * 6, 4, 2.5, a, 0, 7); ctx.fill(); } ctx.fillStyle = '#7a4a24'; ctx.beginPath(); ctx.arc(p.x + sw, hy, 4, 0, 7); ctx.fill(); }
+          else { for(let k = 0; k < 5; k++){ const a = k * Math.PI * 2 / 5; ctx.beginPath(); ctx.arc(p.x + sw + Math.cos(a) * 3.5, hy + Math.sin(a) * 3.5, 3, 0, 7); ctx.fill(); } ctx.fillStyle = '#ffe36a'; ctx.beginPath(); ctx.arc(p.x + sw, hy, 2, 0, 7); ctx.fill(); }
+        }
+        break;
+      }
+      case 'bench': {
+        const a = this.P(x + 10, y + h / 2), b = this.P(x + w - 10, y + h / 2);
+        ctx.fillStyle = '#6b4226'; ctx.fillRect(a.x - 3, a.y - 16, 6, 16); ctx.fillRect(b.x - 3, b.y - 16, 6, 16);
+        this.poly(ctx, [this.up(a, 18), this.up(b, 18), this.up(b, 24), this.up(a, 24)], '#a0693a');
+        this.poly(ctx, [this.up(a, 30), this.up(b, 30), this.up(b, 40), this.up(a, 40)], '#8b5a2b');
+        break;
+      }
+      case 'hay': {
+        ctx.fillStyle = '#00000022'; ctx.beginPath(); ctx.ellipse(c.x, c.y + 4, 26, 11, 0, 0, 7); ctx.fill();
+        ctx.fillStyle = '#e8c35a'; ctx.beginPath(); ctx.ellipse(c.x, c.y - 10, 24, 22, 0, Math.PI, 0); ctx.lineTo(c.x + 24, c.y); ctx.lineTo(c.x - 24, c.y); ctx.fill();
+        ctx.strokeStyle = '#c99b30'; ctx.lineWidth = 2; for(let i = -2; i <= 2; i++){ ctx.beginPath(); ctx.moveTo(c.x + i * 8, c.y - 26 + Math.abs(i) * 4); ctx.lineTo(c.x + i * 9, c.y - 2); ctx.stroke(); }
+        break;
+      }
+      case 'well': {
+        this.box(ctx, x + 14, y + 14, w - 28, h - 28, 26, '#9aa3ad', '#5fb3e0', { flat: true });
+        const p1 = this.up(this.P(x + 18, y + h / 2), 26), p2 = this.up(this.P(x + w - 18, y + h / 2), 26);
+        ctx.fillStyle = '#8b5a2b'; ctx.fillRect(p1.x - 3, p1.y - 46, 6, 46); ctx.fillRect(p2.x - 3, p2.y - 46, 6, 46);
+        this.poly(ctx, [this.up(this.P(x + 8, y + h / 2 - 20), 66), this.up(this.P(x + w - 8, y + h / 2 - 20), 66), this.up(this.P(x + w - 8, y + h / 2 + 20), 66), this.up(this.P(x + 8, y + h / 2 + 20), 66)], '#bc4b2c');
+        this.poly(ctx, [this.up(this.P(x + 8, y + h / 2 + 20), 66), this.up(this.P(x + w - 8, y + h / 2 + 20), 66), this.up(this.P(x + w - 8, y + h / 2 + 20), 58), this.up(this.P(x + 8, y + h / 2 + 20), 58)], '#8e3a22');
+        break;
+      }
+      case 'pond': {
+        // вода рисуется плоско; тут — блики и кувшинки
+        ctx.strokeStyle = '#ffffff99'; ctx.lineWidth = 2;
+        for(let i = 0; i < 3; i++){ const p = this.P(x + w * (0.3 + i * 0.2), y + h * (0.4 + (i % 2) * 0.2)); ctx.beginPath(); ctx.ellipse(p.x, p.y, 10 + Math.sin(time * 2 + i) * 3, 3, 0, 0, 7); ctx.stroke(); }
+        const lp = this.P(x + w * 0.75, y + h * 0.35); ctx.fillStyle = '#3f9a3a'; ctx.beginPath(); ctx.ellipse(lp.x, lp.y, 12, 6, 0.2, 0, 7); ctx.fill(); ctx.fillStyle = '#ff8fb3'; ctx.beginPath(); ctx.arc(lp.x + 3, lp.y - 2, 4, 0, 7); ctx.fill();
+        break;
+      }
     }
   },
   star(ctx, x, y, r){
@@ -148,55 +320,6 @@ const Art = {
     }
   },
 
-  /* ---------- постройки ---------- */
-  shadow(ctx, x, y, w, h){ ctx.fillStyle = '#00000022'; ctx.beginPath(); ctx.ellipse(x + w / 2, y + h - 4, w / 2, 10, 0, 0, 7); ctx.fill(); },
-  house(ctx, x, y, w, h, wall, roof, icon, opts = {}){
-    // фасад 3/4: стена + двускатная крыша
-    const roofH = h * 0.42;
-    this.shadow(ctx, x, y, w, h);
-    ctx.fillStyle = wall;
-    ctx.beginPath(); ctx.roundRect(x + 6, y + roofH - 4, w - 12, h - roofH - 2, 6); ctx.fill();
-    ctx.fillStyle = '#00000014'; ctx.fillRect(x + 6, y + h - 16, w - 12, 10);
-    ctx.fillStyle = roof;
-    ctx.beginPath(); ctx.moveTo(x, y + roofH + 2); ctx.lineTo(x + w * 0.5, y + 2); ctx.lineTo(x + w, y + roofH + 2); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#ffffff22'; ctx.beginPath(); ctx.moveTo(x + w * 0.5, y + 2); ctx.lineTo(x + w, y + roofH + 2); ctx.lineTo(x + w * 0.86, y + roofH + 2); ctx.closePath(); ctx.fill();
-    // дверь
-    ctx.fillStyle = '#6b4226';
-    ctx.beginPath(); ctx.roundRect(x + w / 2 - 12, y + h - 40, 24, 32, [10, 10, 2, 2]); ctx.fill();
-    if(opts.x){ ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x + w / 2 - 9, y + h - 32); ctx.lineTo(x + w / 2 + 9, y + h - 12); ctx.moveTo(x + w / 2 + 9, y + h - 32); ctx.lineTo(x + w / 2 - 9, y + h - 12); ctx.stroke(); }
-    // окно
-    if(w > 100){ ctx.fillStyle = '#bfe3f5'; ctx.fillRect(x + 18, y + h - 44, 18, 16); ctx.fillRect(x + w - 36, y + h - 44, 18, 16); }
-    // вывеска
-    if(icon){
-      ctx.fillStyle = '#fffdf6'; ctx.strokeStyle = '#8b5a2b'; ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(x + w / 2, y + roofH * 0.62, 15, 0, 7); ctx.fill(); ctx.stroke();
-      ctx.font = '18px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(icon, x + w / 2, y + roofH * 0.62 + 1);
-    }
-    if(opts.chimney){
-      ctx.fillStyle = '#8c5a3c'; ctx.fillRect(x + w * 0.72, y + roofH * 0.2, 10, 20);
-      const t = performance.now() / 900;
-      ctx.fillStyle = '#ffffffaa';
-      for(let i = 0; i < 3; i++){ const p = (t + i / 3) % 1; ctx.beginPath(); ctx.arc(x + w * 0.72 + 5 + Math.sin(p * 6) * 4, y + roofH * 0.2 - p * 30, 4 + p * 5, 0, 7); ctx.globalAlpha = 1 - p; ctx.fill(); }
-      ctx.globalAlpha = 1;
-    }
-  },
-  pen(ctx, x, y, w, h, B){
-    // загон: утоптанная земля, забор, домик сзади, кормушка
-    ctx.fillStyle = '#b9d07a'; ctx.beginPath(); ctx.roundRect(x + 4, y + 30, w - 8, h - 34, 10); ctx.fill();
-    ctx.fillStyle = '#a7c06a'; const r = rnd(w + h);
-    for(let i = 0; i < 30; i++){ ctx.beginPath(); ctx.arc(x + 10 + r() * (w - 20), y + 36 + r() * (h - 44), 2 + r() * 3, 0, 7); ctx.fill(); }
-    this.house(ctx, x + w - 110, y - 22, 104, 80, B.wall, B.roof, B.e);
-    ctx.fillStyle = '#8b5a2b'; ctx.fillRect(x + 14, y + h - 28, 44, 12); ctx.fillStyle = '#e6c35c'; ctx.fillRect(x + 17, y + h - 26, 38, 6);
-    this.fence(ctx, x, y + 26, w, h - 26, false);
-  },
-  board(ctx, x, y){
-    ctx.fillStyle = '#8b5a2b'; ctx.fillRect(x + 14, y + 40, 8, 54); ctx.fillRect(x + 74, y + 40, 8, 54);
-    ctx.fillStyle = '#c98f4f'; ctx.beginPath(); ctx.roundRect(x + 4, y + 8, 88, 52, 6); ctx.fill();
-    ctx.fillStyle = '#fffdf6'; for(let i = 0; i < 3; i++){ ctx.fillRect(x + 12 + i * 26, y + 16, 20, 24); }
-    ctx.fillStyle = '#e5533d'; for(let i = 0; i < 3; i++){ ctx.beginPath(); ctx.arc(x + 22 + i * 26, y + 17, 3, 0, 7); ctx.fill(); }
-  },
   truck(ctx, x, y, flip, cargo){
     ctx.save(); ctx.translate(x, y); if(flip) ctx.scale(-1, 1);
     ctx.fillStyle = '#00000025'; ctx.beginPath(); ctx.ellipse(0, 26, 54, 8, 0, 0, 7); ctx.fill();
@@ -252,55 +375,4 @@ const Art = {
     if(opts.badge){ ctx.fillStyle = '#e5533d'; ctx.beginPath(); ctx.arc(x + r - 2, by - r + 2, 8, 0, 7); ctx.fill(); ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Rubik,sans-serif'; ctx.fillText(opts.badge, x + r - 2, by - r + 3); }
   },
 
-  /* ---------- декор ---------- */
-  decor(ctx, kind, x, y, w, h){
-    switch(kind){
-      case 'tree': case 'pine': {
-        this.shadow(ctx, x, y, w, h);
-        ctx.fillStyle = '#7a4a24'; ctx.fillRect(x + w / 2 - 6, y + h - 34, 12, 30);
-        if(kind === 'tree'){
-          ctx.fillStyle = '#3f8f35'; ctx.beginPath(); ctx.arc(x + w / 2, y + h * 0.42, w * 0.42, 0, 7); ctx.fill();
-          ctx.fillStyle = '#56a845'; ctx.beginPath(); ctx.arc(x + w / 2 - 8, y + h * 0.36, w * 0.28, 0, 7); ctx.fill();
-          ctx.fillStyle = '#e5533d'; [[-14, 0], [10, -8], [4, 12], [-4, -16]].forEach(([dx, dy]) => { ctx.beginPath(); ctx.arc(x + w / 2 + dx, y + h * 0.42 + dy, 4, 0, 7); ctx.fill(); });
-        } else {
-          ctx.fillStyle = '#2f6f3a';
-          for(let i = 0; i < 3; i++){ const yy = y + 6 + i * 20; ctx.beginPath(); ctx.moveTo(x + w / 2, yy); ctx.lineTo(x + w / 2 + 26 + i * 6, yy + 34); ctx.lineTo(x + w / 2 - 26 - i * 6, yy + 34); ctx.fill(); }
-        }
-        break;
-      }
-      case 'flowers': case 'sunflower': {
-        const r = rnd(x + y);
-        for(let i = 0; i < 4; i++){
-          const fx = x + 10 + r() * (w - 20), fy = y + 10 + r() * (h - 24);
-          ctx.strokeStyle = '#3f8f35'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(fx, fy + 12); ctx.lineTo(fx, fy); ctx.stroke();
-          ctx.fillStyle = kind === 'sunflower' ? '#ffc93a' : ['#ff6b9a', '#ffd23f', '#a78bfa', '#ff8f4a'][i % 4];
-          ctx.beginPath(); ctx.arc(fx, fy, kind === 'sunflower' ? 8 : 6.5, 0, 7); ctx.fill();
-          if(kind === 'sunflower'){ ctx.fillStyle = '#7a4a24'; ctx.beginPath(); ctx.arc(fx, fy, 2.5, 0, 7); ctx.fill(); }
-        }
-        break;
-      }
-      case 'bench':
-        ctx.fillStyle = '#8b5a2b'; ctx.fillRect(x + 8, y + 18, w - 16, 8); ctx.fillRect(x + 8, y + 8, w - 16, 6);
-        ctx.fillRect(x + 12, y + 26, 5, 14); ctx.fillRect(x + w - 17, y + 26, 5, 14);
-        break;
-      case 'pond':
-        ctx.fillStyle = '#8fbf6a'; ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, 7); ctx.fill();
-        ctx.fillStyle = '#5fb3e0'; ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w / 2 - 8, h / 2 - 8, 0, 0, 7); ctx.fill();
-        ctx.strokeStyle = '#ffffff88'; ctx.lineWidth = 2; const tt = performance.now() / 700;
-        for(let i = 0; i < 2; i++){ ctx.beginPath(); ctx.ellipse(x + w / 2 - 14 + i * 30, y + h / 2 + 4, 8 + Math.sin(tt + i) * 2, 3, 0, 0, 7); ctx.stroke(); }
-        ctx.fillStyle = '#3f8f35'; ctx.beginPath(); ctx.ellipse(x + 26, y + 26, 8, 5, 0.4, 0, 7); ctx.fill();
-        break;
-      case 'hay':
-        ctx.fillStyle = '#e8c35a'; ctx.beginPath(); ctx.ellipse(x + w / 2, y + h - 14, w / 2 - 4, 14, 0, Math.PI, 0); ctx.fill(); ctx.fillRect(x + 4, y + h - 14, w - 8, 8);
-        ctx.strokeStyle = '#c99b30'; ctx.lineWidth = 1.5; for(let i = 0; i < 4; i++){ ctx.beginPath(); ctx.moveTo(x + 10 + i * 8, y + h - 22); ctx.lineTo(x + 8 + i * 8, y + h - 8); ctx.stroke(); }
-        break;
-      case 'well':
-        this.shadow(ctx, x, y, w, h);
-        ctx.fillStyle = '#9aa3ad'; ctx.beginPath(); ctx.roundRect(x + 14, y + h - 40, w - 28, 32, 6); ctx.fill();
-        ctx.fillStyle = '#5fb3e0'; ctx.fillRect(x + 20, y + h - 40, w - 40, 6);
-        ctx.fillStyle = '#8b5a2b'; ctx.fillRect(x + 16, y + 10, 6, h - 44); ctx.fillRect(x + w - 22, y + 10, 6, h - 44);
-        ctx.fillStyle = '#bc4b2c'; ctx.beginPath(); ctx.moveTo(x + 8, y + 16); ctx.lineTo(x + w / 2, y); ctx.lineTo(x + w - 8, y + 16); ctx.fill();
-        break;
-    }
-  },
 };

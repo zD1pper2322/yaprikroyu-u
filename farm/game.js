@@ -10,7 +10,7 @@ let S = null;
 
 function newState(pid, nick){
   const st = {
-    v: 2, pid, nick,
+    v: 3, pid, nick,
     coins: 80, xp: 0, lvl: 1,
     cap: START_STORAGE,
     inv: { wheat: 8, corn: 3 },
@@ -31,6 +31,13 @@ function migrate(st){
   st.buildings = st.buildings || {};
   if(st.sound === undefined) st.sound = true;
   if(st.tut === undefined) st.tut = st.v >= 2 ? 0 : 99;   // старым игрокам обучение не показываем
+  if((st.v || 1) < 3){
+    // новая раскладка под изометрический вид: всё расставляется заново
+    delete st.fixed;
+    for(const b of Object.values(st.buildings)) { delete b.gx; delete b.gy; }
+    (st.plots || []).forEach(p => { delete p.gx; delete p.gy; });
+    (st.decor || []).forEach(d => { delete d.gx; delete d.gy; });
+  }
   st.fixed = st.fixed || { storage: { gx: FIXED.storage.spot[0], gy: FIXED.storage.spot[1] }, board: { gx: FIXED.board.spot[0], gy: FIXED.board.spot[1] } };
   const occ = makeOcc(st);
   for(const [k, b] of Object.entries(st.buildings)){
@@ -40,11 +47,16 @@ function migrate(st){
   st.plots.forEach((p, i) => {
     p.id = p.id || 'p' + i + Math.random().toString(36).slice(2, 5);
     if(p.gx === undefined){
-      const pref = [8 + (i % 4) * 2, 1 + Math.floor(i / 4) * 2];
+      const pref = [7 + (i % 3) * 2, 7 + Math.floor(i / 3) * 2];
       const s = findSpot(occ, PLOT, PLOT, pref); p.gx = s[0]; p.gy = s[1]; occ.mark(p.gx, p.gy, PLOT, PLOT);
     }
   });
-  st.v = 2;
+  st.decor = st.decor.filter(d => DECOR[d.kind]);
+  st.decor.forEach(d => {
+    if(d.gx === undefined){ const s = findSpot(occ, DECOR[d.kind].w, DECOR[d.kind].h, [11, 4]); if(s){ d.gx = s[0]; d.gy = s[1]; occ.mark(d.gx, d.gy, DECOR[d.kind].w, DECOR[d.kind].h); } }
+  });
+  st.decor = st.decor.filter(d => d.gx !== undefined);
+  st.v = 3;
   return st;
 }
 
@@ -55,7 +67,7 @@ function footprints(st, skip){
   for(const [k, b] of Object.entries(st.buildings)) if(skip !== 'building:' + k && b.gx !== undefined) list.push([b.gx, b.gy, BUILDINGS[k].w, BUILDINGS[k].h]);
   for(const [k, f] of Object.entries(st.fixed || {})) list.push([f.gx, f.gy, FIXED[k].w, FIXED[k].h]);
   (st.decor || []).forEach((d, i) => { if(skip !== 'decor:' + i) list.push([d.gx, d.gy, DECOR[d.kind].w, DECOR[d.kind].h]); });
-  list.push([0, 6, 5, 2]);   // дорога к доске заказов
+  list.push([0, 6, 4, 2]);   // дорога к доске заказов
   return list;
 }
 function makeOcc(st, skip){
@@ -167,7 +179,7 @@ function buyPlot(){
   if(S.plots.length >= MAX_PLOTS) return toast('Больше грядок не поместится');
   const cost = plotCost(S.plots.length);
   if(S.coins < cost) return toast(`Нужно 🪙 ${cost}`);
-  const spot = findSpot(makeOcc(S), PLOT, PLOT, [11, 5]);
+  const spot = findSpot(makeOcc(S), PLOT, PLOT, [9, 9]);
   if(!spot) return toast('Нет места на хуторе');
   S.coins -= cost;
   S.plots.push({ id: 'p' + now().toString(36), crop: null, start: 0, gx: spot[0], gy: spot[1] });
@@ -332,7 +344,7 @@ function buyDecor(kind){
   const D = DECOR[kind];
   if(!unlocked(kind)) return toast(`Откроется на уровне ${D.lvl}`);
   if(S.coins < D.cost) return toast(`Нужно 🪙 ${D.cost}`);
-  const spot = findSpot(makeOcc(S), D.w, D.h, [16, 8]);
+  const spot = findSpot(makeOcc(S), D.w, D.h, [11, 4]);
   if(!spot) return toast('Нет места на хуторе');
   S.coins -= D.cost; S.decor.push({ kind, gx: spot[0], gy: spot[1] });
   Sound.play('build'); save(); closeSheet(); Engine.focus(spot[0] + D.w / 2, spot[1] + D.h / 2);

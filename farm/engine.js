@@ -21,9 +21,8 @@ const Engine = {
     this.cv = $('#map'); this.ctx = this.cv.getContext('2d');
     Art.init(this.ctx);
     this.resize(); window.addEventListener('resize', () => this.resize());
-    const z = Math.max(0.5, Math.min(1.1, this.W / (13.5 * TILE)));
-    this.cam.z = z;
-    this.focus(8.5, 9, true);
+    this.cam.z = Math.max(0.5, Math.min(1.2, this.W / 600));
+    this.focus(10, 10, true);
     this.bindInput();
     requestAnimationFrame(t => this.frame(t));
   },
@@ -34,18 +33,23 @@ const Engine = {
     this.cv.width = Math.round(this.W * this.dpr); this.cv.height = Math.round(this.H * this.dpr);
   },
   focus(gx, gy, instant){
-    const tx = gx * TILE - this.W / 2 / this.cam.z, ty = gy * TILE - this.H / 2 / this.cam.z;
+    const p = Art.P(gx * TILE, gy * TILE);
+    const tx = p.x - this.W / 2 / this.cam.z, ty = p.y - this.H / 2 / this.cam.z;
     if(instant){ this.cam.x = tx; this.cam.y = ty; this.clamp(); return; }
     this.camTarget = { x: tx, y: ty };
   },
   clamp(){
-    const z = this.cam.z, mw = MAP_W * TILE, mh = MAP_H * TILE, pad = 160;
+    // границы ромба карты в экранном (изометрическом) пространстве
+    const z = this.cam.z, pad = 200;
+    const minX = -MAP_H * TILE - pad, maxX = MAP_W * TILE + pad, minY = -pad - 120, maxY = (MAP_W + MAP_H) * TILE / 2 + pad;
     const vw = this.W / z, vh = this.H / z;
-    this.cam.x = vw > mw + pad * 2 ? (mw - vw) / 2 : Math.max(-pad - 4 * TILE, Math.min(mw + pad - vw, this.cam.x));
-    this.cam.y = vh > mh + pad * 2 ? (mh - vh) / 2 : Math.max(-pad, Math.min(mh + pad - vh, this.cam.y));
+    this.cam.x = vw > maxX - minX ? (minX + maxX - vw) / 2 : Math.max(minX, Math.min(maxX - vw, this.cam.x));
+    this.cam.y = vh > maxY - minY ? (minY + maxY - vh) / 2 : Math.max(minY, Math.min(maxY - vh, this.cam.y));
   },
-  toWorld(sx, sy){ const r = this.cv.getBoundingClientRect(); return { x: (sx - r.left) / this.cam.z + this.cam.x, y: (sy - r.top) / this.cam.z + this.cam.y }; },
-  toScreen(wx, wy){ const r = this.cv.getBoundingClientRect(); return { x: (wx - this.cam.x) * this.cam.z + r.left, y: (wy - this.cam.y) * this.cam.z + r.top }; },
+  // экран → изометрия → земля (плоские координаты)
+  toIso(sx, sy){ const r = this.cv.getBoundingClientRect(); return { x: (sx - r.left) / this.cam.z + this.cam.x, y: (sy - r.top) / this.cam.z + this.cam.y }; },
+  toWorld(sx, sy){ const i = this.toIso(sx, sy); return { x: i.x / 2 + i.y, y: i.y - i.x / 2, ix: i.x, iy: i.y }; },
+  toScreen(wx, wy){ const p = Art.P(wx, wy), r = this.cv.getBoundingClientRect(); return { x: (p.x - this.cam.x) * this.cam.z + r.left, y: (p.y - this.cam.y) * this.cam.z + r.top }; },
 
   /* ---------- объекты на карте ---------- */
   objects(){
@@ -57,10 +61,19 @@ const Engine = {
     if(this.moving){ const o = list.find(o => o.key === this.moving.key); if(o){ o.gx = this.moving.gx; o.gy = this.moving.gy; } }
     return list;
   },
+  height(o){ return o.type === 'factory' ? 120 : o.type === 'storage' ? 140 : o.type === 'board' ? 100 : o.type === 'decor' && (o.kind === 'tree' || o.kind === 'pine') ? 110 : o.type === 'house' ? 40 : 30; },
   hit(wx, wy){
-    const objs = this.objects().filter(o => wx >= o.gx * TILE && wx < (o.gx + o.w) * TILE && wy >= (o.gy - (o.type === 'factory' || o.type === 'storage' ? 0.6 : 0)) * TILE && wy < (o.gy + o.h) * TILE);
-    objs.sort((a, b) => (b.gy + b.h) - (a.gy + a.h));
-    return objs[0] || null;
+    const w = { x: wx, y: wy }, iso = Art.P(wx, wy);
+    const cands = this.objects().filter(o => {
+      const x0 = o.gx * TILE, y0 = o.gy * TILE, x1 = (o.gx + o.w) * TILE, y1 = (o.gy + o.h) * TILE;
+      if(w.x >= x0 && w.x < x1 && w.y >= y0 && w.y < y1) return true;
+      if(o.type === 'plot') return false;
+      // тело постройки над основанием
+      const L = Art.P(x0, y1), R = Art.P(x1, y0), T = Art.P(x0, y0), B = Art.P(x1, y1);
+      return iso.x >= L.x && iso.x <= R.x && iso.y >= T.y - this.height(o) && iso.y <= B.y;
+    });
+    cands.sort((a, b) => (b.gx + b.w / 2 + b.gy + b.h / 2) - (a.gx + a.w / 2 + a.gy + a.h / 2));
+    return cands[0] || null;
   },
   plotAt(wx, wy){
     const st = this.st;
@@ -71,7 +84,7 @@ const Engine = {
   /* ---------- животные ---------- */
   penBox(hk){
     const b = this.st.buildings[hk], B = BUILDINGS[hk];
-    return { x1: b.gx * TILE + 24, x2: (b.gx + B.w) * TILE - 24, y1: b.gy * TILE + 86, y2: (b.gy + B.h) * TILE - 18 };
+    return { x1: b.gx * TILE + 26, x2: (b.gx + B.w) * TILE - 26, y1: b.gy * TILE + 26, y2: (b.gy + B.h) * TILE - 26, sx: (b.gx + B.w - 2.2) * TILE, sy: b.gy * TILE + 2.2 * TILE };
   },
   animalPos(hk, i){ return this.animals.get(hk + ':' + i) || null; },
   stepAnimals(dt){
@@ -91,16 +104,19 @@ const Engine = {
         if(m.wait > 0){ m.wait -= dt; m.walk = 0; }
         else {
           const dx = m.tx - m.x, dy = m.ty - m.y, d = Math.hypot(dx, dy);
-          if(d < 2){ m.wait = 1 + Math.random() * (busy === 'ready' ? 4 : 2.5); m.tx = box.x1 + Math.random() * (box.x2 - box.x1); m.ty = box.y1 + Math.random() * (box.y2 - box.y1); }
+          if(d < 2){
+            m.wait = 1 + Math.random() * (busy === 'ready' ? 4 : 2.5);
+            do { m.tx = box.x1 + Math.random() * (box.x2 - box.x1); m.ty = box.y1 + Math.random() * (box.y2 - box.y1); } while(m.tx > box.sx && m.ty < box.sy);
+          }
           else { m.x += dx / d * speed * dt; m.y += dy / d * speed * dt; m.dir = dx >= 0 ? 1 : -1; m.walk += dt; }
         }
       });
     }
   },
   animalAt(hk, wx, wy){
-    const n = (this.st.buildings[hk]?.animals || []).length;
-    let best = -1, bd = 30;
-    for(let i = 0; i < n; i++){ const m = this.animalPos(hk, i); if(!m) continue; const d = Math.hypot(m.x - wx, m.y - 4 - wy); if(d < bd){ bd = d; best = i; } }
+    const n = (this.st.buildings[hk]?.animals || []).length, pt = Art.P(wx, wy);
+    let best = -1, bd = 34;
+    for(let i = 0; i < n; i++){ const m = this.animalPos(hk, i); if(!m) continue; const a = Art.P(m.x, m.y); const d = Math.hypot(a.x - pt.x, a.y - 14 - pt.y); if(d < bd){ bd = d; best = i; } }
     return best;
   },
 
@@ -120,78 +136,110 @@ const Engine = {
     c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     c.clearRect(0, 0, this.W, this.H);
     c.setTransform(this.dpr * z, 0, 0, this.dpr * z, -this.cam.x * z * this.dpr, -this.cam.y * z * this.dpr);
-    Art.ground(c);
     const objs = this.objects();
-    // сетка при перестановке
-    if(this.moving){
-      c.strokeStyle = '#ffffff40'; c.lineWidth = 1;
-      for(let x = 0; x <= MAP_W; x++){ c.beginPath(); c.moveTo(x * TILE, 0); c.lineTo(x * TILE, MAP_H * TILE); c.stroke(); }
-      for(let y = 0; y <= MAP_H; y++){ c.beginPath(); c.moveTo(0, y * TILE); c.lineTo(MAP_W * TILE, y * TILE); c.stroke(); }
+    const T = TILE;
+    // 1) земля и всё плоское — в плоских координатах через матрицу изометрии
+    c.save(); c.transform(1, 0.5, -1, 0.5, 0, 0);
+    Art.groundFlat(c);
+    for(const o of objs){
+      const x = o.gx * T, y = o.gy * T, w = o.w * T, h = o.h * T;
+      if(o.type === 'plot'){
+        const p = st.plots[o.idx], ps = plotState(p);
+        const hl = this.tool && ((this.tool.kind === 'seed' && ps.s === 'empty') || (this.tool.kind === 'sickle' && ps.s === 'ready')) ? '#ffffffcc' : (p.helpedBy && ps.s === 'growing' ? '#7fd3ff' : null);
+        Art.plotFlat(c, x, y, w, ps.s === 'ready', hl);
+      } else if(o.type === 'house') Art.penFlat(c, x, y, w, h);
+      else if(o.type === 'factory' || o.type === 'storage') Art.shadowFlat(c, x, y, w, h);
+      else if(o.type === 'decor' && o.kind === 'pond') Art.pondFlat(c, x, y, w, h);
+      if(this.moving && this.moving.key === o.key){ c.fillStyle = this.moving.ok ? '#3fcf4a55' : '#e5533d66'; c.fillRect(x, y, w, h); }
     }
-    // грядки — плоские, рисуем первыми
-    objs.filter(o => o.type === 'plot').forEach(o => {
-      const p = st.plots[o.idx], ps = plotState(p);
-      const hl = this.tool && ((this.tool.kind === 'seed' && ps.s === 'empty') || (this.tool.kind === 'sickle' && ps.s === 'ready')) ? '#ffffffaa' : (p.helpedBy && ps.s === 'growing' ? '#7fd3ff' : null);
-      Art.plot(c, o.gx * TILE, o.gy * TILE, PLOT * TILE, p.crop, ps.pct || 0, ps.s === 'ready', o.idx + 1, hl);
-    });
-    // остальное — по глубине
-    const rest = objs.filter(o => o.type !== 'plot').sort((a, b) => (a.gy + a.h) - (b.gy + b.h));
-    const overlays = [];
-    for(const o of rest){
-      const x = o.gx * TILE, y = o.gy * TILE, w = o.w * TILE, h = o.h * TILE;
-      if(o.type === 'house'){
-        const B = BUILDINGS[o.bk], b = st.buildings[o.bk];
-        Art.pen(c, x, y, w, h, B);
-        (b.animals || []).forEach((a, i) => {
-          const m = this.animalPos(o.bk, i); if(!m) return;
-          const as = animalState(a, B.animal);
-          Art.animal(c, B.animal, m.x, m.y, m.dir, m.walk ? time : 0, as.s);
-          if(as.s === 'ready') overlays.push(() => Art.bubble(c, m.x, m.y - 34, ITEMS[ANIMALS[B.animal].makes].e, { r: 14 }));
-          else if(as.s === 'hungry') overlays.push(() => Art.bubble(c, m.x, m.y - 30, ITEMS[ANIMALS[B.animal].feed].e, { r: 9, bg: '#ffffffcc' }));
+    if(this.moving){
+      c.strokeStyle = '#ffffff55'; c.lineWidth = 2;
+      for(let i = 0; i <= MAP_W; i++){ c.beginPath(); c.moveTo(i * T, 0); c.lineTo(i * T, MAP_H * T); c.stroke(); }
+      for(let j = 0; j <= MAP_H; j++){ c.beginPath(); c.moveTo(0, j * T); c.lineTo(MAP_W * T, j * T); c.stroke(); }
+    }
+    c.restore();
+    // 2) задний забор хутора
+    const W = MAP_W * T, H = MAP_H * T;
+    Art.fenceLine(c, 0, 0, W, 0); Art.fenceLine(c, 0, 0, 0, H, [5.8 * T, 8.2 * T]);
+    // 3) вертикальные объекты по глубине (дальше — раньше)
+    const items = [], overlays = [];
+    const add = (depth, fn) => items.push({ depth, fn });
+    for(const o of objs){
+      const x = o.gx * T, y = o.gy * T, w = o.w * T, h = o.h * T;
+      const depth = x + w / 2 + y + h / 2;
+      if(o.type === 'plot'){
+        const p = st.plots[o.idx], ps = plotState(p);
+        if(!p.crop) continue;
+        add(x + y + w * 0.6, () => {
+          const r = rnd((o.idx + 1) * 31 + 7), stage = ps.s === 'ready' ? 3 : ps.pct < 0.33 ? 0 : ps.pct < 0.66 ? 1 : 2;
+          const pts = [];
+          for(let j = 0; j < 3; j++) for(let i = 0; i < 4; i++) pts.push([x + 16 + i * (w - 32) / 3 + (r() - 0.5) * 6, y + 16 + j * (h - 32) / 2 + (r() - 0.5) * 6]);
+          pts.sort((a2, b2) => (a2[0] + a2[1]) - (b2[0] + b2[1]));
+          for(const [gx2, gy2] of pts){
+            const q = Art.P(gx2, gy2);
+            c.save(); c.translate(q.x, q.y); c.scale(1.35, 1.35);
+            if(stage > 0){ const sway = Math.sin(time * 2 + gx2 * 0.05) * 0.06; c.rotate(sway); }
+            Art.crop(c, p.crop, stage, 0, 0, r);
+            c.restore();
+          }
+          if(ps.s === 'ready'){ const q = Art.P(x + w * 0.85, y + h * 0.15); c.fillStyle = `rgba(255,255,255,${0.5 + 0.5 * Math.sin(time * 3 + o.idx)})`; Art.star(c, q.x, q.y - 30, 7); }
         });
+      } else if(o.type === 'house'){
+        const B = BUILDINGS[o.bk], b = st.buildings[o.bk];
+        // забор загона: задние стороны, домик, корыто, животные, передние стороны
+        add(x + y, () => { Art.fenceLine(c, x, y, x + w, y); Art.fenceLine(c, x, y, x, y + h); });
+        add(x + w - 2.2 * T + y + 2.2 * T, () => Art.shelter(c, x + w - 2.4 * T, y + 0.3 * T, 2 * T, 1.7 * T, B));
+        add(x + 0.4 * T + y + h - 0.8 * T, () => Art.trough(c, x + 0.4 * T, y + h - 0.9 * T));
+        (b.animals || []).forEach((a2, i) => {
+          const m = this.animalPos(o.bk, i); if(!m) return;
+          const as = animalState(a2, B.animal);
+          add(m.x + m.y, () => {
+            const q = Art.P(m.x, m.y);
+            const hop = m.hop && time - m.hop < 0.4 ? Math.sin((time - m.hop) / 0.4 * Math.PI) * 10 : 0;
+            Art.animal(c, B.animal, q.x, q.y - hop, m.dir, m.walk ? time : 0, as.s);
+            if(as.s === 'ready') overlays.push(() => Art.bubble(c, q.x, q.y - 54, ITEMS[ANIMALS[B.animal].makes].e, { r: 15 }));
+            else if(as.s === 'hungry') overlays.push(() => Art.bubble(c, q.x, q.y - 48, ITEMS[ANIMALS[B.animal].feed].e, { r: 10, bg: '#ffffffcc' }));
+          });
+        });
+        add(x + w + y + h, () => { Art.fenceLine(c, x, y + h, x + w, y + h); Art.fenceLine(c, x + w, y, x + w, y + h); });
       } else if(o.type === 'factory'){
         const B = BUILDINGS[o.bk], q = st.buildings[o.bk].queue || [];
-        Art.house(c, x, y - 0.6 * TILE, w, h + 0.6 * TILE, B.wall, B.roof, B.e, { chimney: q.some(j => j.start <= now() && j.end > now()) });
-        const done = q.filter(j => j.end <= now());
-        const run = q.find(j => j.start <= now() && j.end > now());
-        if(done.length) overlays.push(() => Art.bubble(c, x + w / 2, y - 0.6 * TILE - 6, ITEMS[done[0].item].e, { badge: done.length > 1 ? done.length : 0 }));
-        else if(run){ const pct = (now() - run.start) / (run.end - run.start); overlays.push(() => { c.fillStyle = '#00000055'; c.beginPath(); c.roundRect(x + 14, y + h + 2, w - 28, 8, 4); c.fill(); c.fillStyle = '#7ad04f'; c.beginPath(); c.roundRect(x + 14, y + h + 2, (w - 28) * pct, 8, 4); c.fill(); }); }
+        const run = q.find(j => j.start <= now() && j.end > now()), done = q.filter(j => j.end <= now());
+        add(depth, () => Art.factory(c, x, y, w, h, B, !!run, time));
+        const top = Art.P(x + w / 2, y + h / 2);
+        if(done.length) overlays.push(() => Art.bubble(c, top.x, top.y - 150, ITEMS[done[0].item].e, { badge: done.length > 1 ? done.length : 0 }));
+        else if(run){ const pct = (now() - run.start) / (run.end - run.start); const bp = Art.P(x + w, y + h); overlays.push(() => { c.fillStyle = '#00000066'; c.beginPath(); c.roundRect(bp.x - 70, bp.y - 4, 70, 10, 5); c.fill(); c.fillStyle = '#7ad04f'; c.beginPath(); c.roundRect(bp.x - 70, bp.y - 4, 70 * pct, 10, 5); c.fill(); }); }
       } else if(o.type === 'storage'){
-        Art.house(c, x, y - 0.6 * TILE, w, h + 0.6 * TILE, '#c8442f', '#7a2a1d', '📦', { x: true });
+        add(depth, () => Art.barn(c, x, y, w, h));
       } else if(o.type === 'board'){
-        Art.board(c, x, y);
-        const ts = this.visit ? 'home' : truckState();
-        const hasOrder = !this.visit && (S.orders || []).some(o2 => o2 && canPay(o2.items));
-        if(hasOrder && ts === 'home') overlays.push(() => Art.bubble(c, x + w / 2, y - 10, '✅', { r: 13 }));
+        add(depth, () => Art.board(c, x, y));
+        const hasOrder = !this.visit && (S.orders || []).some(o2 => o2 && canPay(o2.items)) && truckState() === 'home';
+        if(hasOrder){ const q = Art.P(x + w / 2, y + h / 2); overlays.push(() => Art.bubble(c, q.x, q.y - 120, '✅', { r: 14 })); }
       } else if(o.type === 'decor'){
-        Art.decor(c, o.kind, x, y, w, h);
-      }
-      if(this.moving && this.moving.key === o.key){
-        c.fillStyle = this.moving.ok ? '#3fcf4a44' : '#e5533d55';
-        c.fillRect(x, y, w, h);
+        if(o.kind !== 'pond' || true) add(depth, () => Art.decorUp(c, o.kind, x, y, w, h, time));
       }
     }
-    if(this.moving && this.moving.key.startsWith('plot:')){
-      const m = this.moving; c.fillStyle = m.ok ? '#3fcf4a44' : '#e5533d55'; c.fillRect(m.gx * TILE, m.gy * TILE, PLOT * TILE, PLOT * TILE);
+    // грузовик
+    const tp = this.truckPos();
+    if(tp){
+      add(tp.x + tp.y, () => { const q = Art.P(tp.x, tp.y); Art.truck(c, q.x, q.y - 8, tp.flip, tp.cargo); });
+      if(!this.visit && truckState() === 'back'){ const q = Art.P(tp.x, tp.y); overlays.push(() => Art.bubble(c, q.x, q.y - 70, '🪙', { r: 17 })); }
     }
-    this.drawTruck(c, time, overlays);
+    items.sort((a2, b2) => a2.depth - b2.depth).forEach(it => it.fn());
+    // 4) передний забор
+    Art.fenceLine(c, 0, H, W, H); Art.fenceLine(c, W, 0, W, H);
     overlays.forEach(f => f());
   },
   truckPos(){
     const f = this.st.fixed.board;
-    const home = { x: (f.gx + 3.6) * TILE, y: 6.85 * TILE };
+    const home = { x: (f.gx + 3.2) * TILE, y: 7 * TILE };
     if(this.visit) return home;
     const ts = truckState();
     if(ts !== 'away') return home;
     const left = now() - (S.truck.back - TRUCK_TIME * 1000), toEnd = S.truck.back - now();
-    if(left < 3000) return { x: home.x - (left / 3000) ** 2 * 900, y: home.y, flip: true, cargo: true };
-    if(toEnd < 3000) return { x: home.x - (toEnd / 3000) ** 2 * 900, y: home.y };
+    if(left < 3000) return { x: home.x - (left / 3000) ** 2 * 1400, y: home.y, flip: true, cargo: true };
+    if(toEnd < 3000) return { x: home.x - (toEnd / 3000) ** 2 * 1400, y: home.y };
     return null;
-  },
-  drawTruck(c, time, overlays){
-    const p = this.truckPos(); if(!p) return;
-    Art.truck(c, p.x, p.y, p.flip, p.cargo);
-    if(!this.visit && truckState() === 'back') overlays.push(() => Art.bubble(c, p.x, p.y - 44, '🪙', { r: 16 }));
   },
 
   /* ---------- ввод ---------- */
@@ -244,6 +292,7 @@ const Engine = {
       const w = this.toWorld(e.clientX, e.clientY);
       const m = this.moving;
       m.gx = Math.round((w.x - m.ox) / TILE); m.gy = Math.round((w.y - m.oy) / TILE);
+      m.gx = Math.max(0, Math.min(MAP_W - m.w, m.gx)); m.gy = Math.max(0, Math.min(MAP_H - m.h, m.gy));
       m.ok = makeOcc(S, m.key).free(m.gx, m.gy, m.w, m.h);
       return;
     }
@@ -291,7 +340,7 @@ const Engine = {
     if(this.visit) return Net.tapVisit(obj, w);
     // грузовик
     const tp = this.truckPos();
-    if(tp && truckState() === 'back' && Math.hypot(w.x - tp.x, w.y - tp.y) < 70){ collectTruck(); return; }
+    if(tp && truckState() === 'back'){ const a = Art.P(tp.x, tp.y), b2 = Art.P(w.x, w.y); if(Math.hypot(a.x - b2.x, a.y - 30 - b2.y) < 70){ collectTruck(); return; } }
     if(!obj) return;
     Sound.play('tap');
     switch(obj.type){
@@ -342,7 +391,7 @@ const Engine = {
       if(ok){ T.used = true; (T.done = T.done || new Set()).add(i); }
     } else if(T.kind === 'feed'){
       const i = this.animalAt(T.hk, w.x, w.y); if(i < 0) return;
-      if(feedAnimal(T.hk, i)) T.used = true;
+      if(feedAnimal(T.hk, i)){ T.used = true; const m = this.animalPos(T.hk, i); if(m) m.hop = performance.now() / 1000; }
     }
   },
   endTool(e){
