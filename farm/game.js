@@ -529,14 +529,16 @@ function openStorage(){
     sh.querySelector('#upStore').onclick = () => { upgradeStorage(); openStorage(); };
   }, null, 'storage');
 }
+const NEW_FACTORIES = ['popcornpot', 'grill', 'pieoven', 'icecream', 'pizzeria', 'soupkitchen', 'pastamaker', 'fryer', 'blender', 'saucery', 'sewing'];
 function openShop(tab = 'build'){
   const tabs = `<div class="seg"><button data-t="build" class="${tab === 'build' ? 'active' : ''}">Постройки</button><button data-t="field" class="${tab === 'field' ? 'active' : ''}">Поле</button><button data-t="decor" class="${tab === 'decor' ? 'active' : ''}">Декор</button></div>`;
   let body = '';
   if(tab === 'build'){
-    body = Object.keys(BUILDINGS).map(k => {
+    const rank = k => (S.buildings[k] ? 2 : NEW_FACTORIES.includes(k) ? 0 : 1);
+    body = Object.keys(BUILDINGS).sort((a, b) => rank(a) - rank(b)).map(k => {
       const B = BUILDINGS[k], built = !!S.buildings[k];
       const sub = B.kind === 'house' ? `${ANIMALS[B.animal].e} даёт ${ITEMS[ANIMALS[B.animal].makes].e}` : Object.keys(RECIPES).filter(r => RECIPES[r].b === k).map(r => ITEMS[r].e).join(' ');
-      return `<div class="shop-row ${built ? 'done' : ''}"><span class="se">${B.e}</span><div class="si"><b>${B.n}</b><small>${sub}</small></div>
+      return `<div class="shop-row ${built ? 'done' : ''}"><span class="se">${B.e}</span><div class="si"><b>${B.n}${NEW_FACTORIES.includes(k) && !built ? '<span class="new-tag">НОВОЕ</span>' : ''}</b><small>${sub}</small></div>
         ${built ? '<span class="tag">есть</span>' : unlocked(k) ? `<button class="btn primary sm" data-build="${k}">🪙 ${B.cost}</button>` : `<span class="tag">🔒 ур. ${B.lvl}</span>`}</div>`;
     }).join('') + Object.keys(BUILDINGS).filter(k => BUILDINGS[k].kind === 'house' && S.buildings[k]).map(k => {
       const B = BUILDINGS[k], A = ANIMALS[B.animal], n = S.buildings[k].animals.length;
@@ -722,6 +724,7 @@ function startGame(state){
   renderHud(); Tut.show();
   save();
   Daily.check(); Daily.dot(); Boat.tick();
+  if((S.seenNews || 0) < 8){ S.seenNews = 8; save(); setTimeout(() => toast('🏭 Новое: 11 заводов и 3 культуры — всё доступно сразу в 🛒 Магазине'), 2500); }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -737,7 +740,13 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#tut button').onclick = () => { S.tut = 99; save(); Tut.show(); };
   document.addEventListener('pointerdown', () => { Sound.unlock(); Music.sync(); }, { capture: true });
   $('#btnAll').onclick = collectAll;
-  if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+  if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+    // когда выходит новая версия игры — новый «сервис-воркер» берёт управление, и страница перезагружается сама
+    const had = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if(had && !reloaded){ reloaded = true; if(S) save(); location.reload(); } });
+  }
   // Окна с таймерами обновляются раз в секунду.
   setInterval(() => {
     if(!S) return;
