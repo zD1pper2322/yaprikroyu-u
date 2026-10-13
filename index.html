@@ -1298,6 +1298,20 @@
       <input type="file" id="restoreFileInput" accept=".json" style="display:none;">
       <p class="admin-backup-meta" id="lastBackupInfo"></p>
     </div>
+
+    <div class="admin-backup-section">
+      <h4>Доступ для напоминаний ВК</h4>
+      <p class="admin-backup-hint">Утренней сводке и уведомлениям нужен свой вход в базу. Нажмите кнопку один раз и вставьте полученную строку на GitHub в секрет <b>FIREBASE_BOT</b>.</p>
+      <button class="modal-submit" id="makeBotBtn" style="background:#00000010; color:var(--bg-deep);">Создать ключ для GitHub</button>
+      <div id="botBox" hidden style="margin-top:10px;">
+        <textarea id="botCred" readonly rows="3" style="width:100%; font-family:'JetBrains Mono',monospace; font-size:12px; padding:8px; border-radius:8px; border:1.5px solid #00000018; resize:none;"></textarea>
+        <div class="admin-backup-buttons" style="margin-top:8px;">
+          <button class="modal-submit" id="copyBotBtn" style="background:var(--amber); color:var(--bg-deep);">Скопировать</button>
+          <a class="modal-submit" href="https://github.com/zD1pper2322/yaprikroyu-u/settings/secrets/actions/new" target="_blank" rel="noopener" style="background:var(--bg-deep); color:var(--paper); text-align:center; text-decoration:none; display:block;">Открыть GitHub</a>
+        </div>
+        <p class="admin-backup-meta">Name: FIREBASE_BOT · Secret: эта строка. Строка показывается один раз.</p>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1445,6 +1459,76 @@ console.error = (...args) => { pushAppLog('err', args); __origConsoleError(...ar
 
 const FIREBASE_DB_URL = 'https://ya-prikroyu-default-rtdb.europe-west1.firebasedatabase.app'; // например: 'https://ya-prikroyu-12345-default-rtdb.firebaseio.com'
 const CLOUD_ENABLED = FIREBASE_DB_URL.trim().length > 0;
+
+/* ---------------- ВХОД ЧЕРЕЗ FIREBASE ----------------
+   Каждый сотрудник — отдельный аккаунт Firebase Authentication.
+   Почта и пароль аккаунта вычисляются из логина и пароля сотрудника
+   (через SHA-256), поэтому сами пароли нигде не хранятся.
+   Правила базы пускают к товарам только вошедших сотрудников
+   (/allowed/<uid>), а к управлению — только админов (/admins/<uid>).
+   Ключ ниже не секретный: он есть в коде любого сайта на Firebase. */
+const FIREBASE_API_KEY = 'AIzaSyACN9IXzwhSzoxBWvi4WTccFn_AFfRHgqE';
+const AUTH_KEY = 'ya_prikroyu_auth_v1';
+const AUTH_DOMAIN = 'yaprikroyu.app';
+let AUTH = (() => { try{ const a = JSON.parse(localStorage.getItem(AUTH_KEY)); return a && a.refreshToken ? a : null; }catch(e){ return null; } })();
+function setAuth(a){ AUTH = a; try{ a ? localStorage.setItem(AUTH_KEY, JSON.stringify(a)) : localStorage.removeItem(AUTH_KEY); }catch(e){} }
+const __rawFetch = window.fetch.bind(window);
+async function hexSha(text){
+  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+async function authCreds(login, password){
+  const l = String(login).trim().toLowerCase();
+  return {
+    email: `u${(await hexSha('l:' + l)).slice(0, 12)}.${(await hexSha('e:' + l + ':' + password)).slice(0, 12)}@${AUTH_DOMAIN}`,
+    password: await hexSha('p:' + l + ':' + password)
+  };
+}
+async function idtk(method, body){
+  const res = await __rawFetch(`https://identitytoolkit.googleapis.com/v1/accounts:${method}?key=${FIREBASE_API_KEY}`, {
+    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...body, returnSecureToken:true })
+  });
+  const j = await res.json();
+  if(!res.ok){ const e = new Error(j?.error?.message || ('auth ' + res.status)); e.code = j?.error?.message || ''; throw e; }
+  return j;
+}
+function sessionFrom(j, login){ return { uid: j.localId, idToken: j.idToken, refreshToken: j.refreshToken, exp: Date.now() + (+j.expiresIn || 3600) * 1000, login }; }
+async function fbSignIn(email, password){ return idtk('signInWithPassword', { email, password }); }
+// Создать аккаунт (или получить существующий с теми же данными) — вернуть uid.
+async function fbEnsureAccount(email, password){
+  try{ return (await idtk('signUp', { email, password })).localId; }
+  catch(e){
+    if(/EMAIL_EXISTS/.test(e.code)) return (await fbSignIn(email, password)).localId;
+    throw e;
+  }
+}
+let refreshing = null;
+async function ensureFreshToken(){
+  if(!AUTH || AUTH.exp - Date.now() > 60000) return;
+  if(!refreshing){
+    refreshing = (async () => {
+      try{
+        const res = await __rawFetch(`https://securetoken.googleapis.com/v1/token?key=${FIREBASE_API_KEY}`, {
+          method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+          body: 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(AUTH.refreshToken)
+        });
+        const j = await res.json();
+        if(res.ok) setAuth({ ...AUTH, idToken: j.id_token, refreshToken: j.refresh_token, exp: Date.now() + (+j.expires_in || 3600) * 1000 });
+      }catch(e){ /* нет связи — попробуем позже */ }
+      refreshing = null;
+    })();
+  }
+  await refreshing;
+}
+// Все запросы к базе автоматически идут с токеном вошедшего сотрудника.
+window.fetch = async (url, opt) => {
+  if(typeof url === 'string' && url.startsWith(FIREBASE_DB_URL) && AUTH){
+    await ensureFreshToken();
+    url += (url.includes('?') ? '&' : '?') + 'auth=' + encodeURIComponent(AUTH.idToken);
+  }
+  return __rawFetch(url, opt);
+};
+const staffKey = login => String(login).trim().toLowerCase().replace(/[.#$\[\]\/]/g, '_');
 const CLOUD_POLL_INTERVAL_MS = 8000; // как часто проверять обновления с других устройств
 
 /* ---------------- ОТДЕЛЫ И ПОДКАТЕГОРИИ ----------------
@@ -1830,18 +1914,24 @@ let pendingUsersWriteUntil = 0;
 // (на экране логина — чтобы пароли, заданные админом на другом устройстве,
 // уже работали), и периодически после входа.
 async function pullUsersFromCloud(){
-  if(!CLOUD_ENABLED || usersSyncing) return;
+  if(!CLOUD_ENABLED || usersSyncing || !AUTH) return;
   usersSyncing = true;
   try{
-    const res = await fetch(`${FIREBASE_DB_URL}/users.json?_=${Date.now()}`, { cache: 'no-store' });
-    if(res.ok){
-      const remote = await res.json();
-      if(Array.isArray(remote) && Date.now() > pendingUsersWriteUntil){
-        USERS = remote.filter(Boolean); // Firebase хранит массивы как объекты с "дырками" при удалении — filter(Boolean) убирает null
-        saveLocalUsers();
-        if(currentUser && currentUser.role === 'admin' && document.getElementById('adminModalOverlay')?.classList.contains('show')){
-          renderAdminUserList();
+    const res = await fetch(`${FIREBASE_DB_URL}/staff.json?_=${Date.now()}`, { cache: 'no-store' });
+    if(res.ok && Date.now() > pendingUsersWriteUntil){
+      const remote = (await res.json()) || {};
+      USERS = Object.values(remote).filter(u => u && u.login).map(u => ({ id: u.login, login: u.login, name: u.name || u.login, departments: asList(u.departments), uid: u.uid }));
+      saveLocalUsers();
+      if(currentUser && currentUser.role === 'staff'){
+        const me = USERS.find(u => u.login === currentUser.login);
+        if(me && JSON.stringify(me.departments) !== JSON.stringify(currentUser.departments)){
+          currentUser.departments = me.departments;
+          localStorage.setItem(SESSION_USER_KEY, JSON.stringify(currentUser));
+          afterCatalogChange();
         }
+      }
+      if(currentUser && currentUser.role === 'admin' && document.getElementById('adminModalOverlay')?.classList.contains('show')){
+        renderAdminUserList();
       }
     }
   }catch(e){
@@ -1850,27 +1940,57 @@ async function pullUsersFromCloud(){
   usersSyncing = false;
 }
 
+// Сохраняет список сотрудников (только админ). Тем, у кого ещё нет аккаунта,
+// создаёт его; пароли в базу не попадают. Список допуска /allowed
+// пересобирается: админы + текущие сотрудники (удалённые теряют доступ).
 async function pushUsersToCloud(){
-  if(!CLOUD_ENABLED) return;
-  pendingUsersWriteUntil = Date.now() + 5000;
+  if(!CLOUD_ENABLED) return false;
+  pendingUsersWriteUntil = Date.now() + 8000;
+  let ok = false;
   try{
-    const res = await fetch(`${FIREBASE_DB_URL}/users.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      cache: 'no-store',
-      body: JSON.stringify(USERS)
-    });
-    if(res.ok){
-      pendingUsersWriteUntil = Date.now() + 1500;
-      showToast('✅ Список сотрудников сохранён', 'success', 2000);
-    } else {
-      showToast('❌ Не удалось сохранить список сотрудников в облако', 'error', 5000);
+    for(const u of USERS){
+      if(u.password){
+        const c = await authCreds(u.login, u.password);
+        u.uid = await fbEnsureAccount(c.email, c.password);
+        delete u.password;
+      }
+      u.id = u.login;
     }
+    const staff = {};
+    USERS.forEach(u => { staff[staffKey(u.login)] = { login: u.login, name: u.name, departments: u.departments || [], uid: u.uid || '' }; });
+    const admins = (await (await fetch(`${FIREBASE_DB_URL}/admins.json?_=${Date.now()}`, { cache:'no-store' })).json()) || {};
+    const allowed = {};
+    Object.keys(admins).forEach(uid => { allowed[uid] = { admin: true }; });
+    USERS.forEach(u => { if(u.uid) allowed[u.uid] = { login: u.login }; });
+    const r1 = await fetch(`${FIREBASE_DB_URL}/staff.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, cache:'no-store', body: JSON.stringify(staff) });
+    const r2 = await fetch(`${FIREBASE_DB_URL}/allowed.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, cache:'no-store', body: JSON.stringify(allowed) });
+    ok = r1.ok && r2.ok;
+    pendingUsersWriteUntil = Date.now() + 1500;
+    if(ok) showToast('✅ Список сотрудников сохранён', 'success', 2000);
+    else showToast('❌ Не удалось сохранить список сотрудников', 'error', 5000);
   }catch(e){
     console.error('[Я прикрою] Ошибка сохранения пользователей:', e.message);
-    showToast('❌ Нет связи с облаком — сотрудники сохранены только локально', 'error', 5000);
+    showToast(/OPERATION_NOT_ALLOWED/.test(e.code || '') ? '❌ В Firebase не включён вход по почте и паролю' : '❌ Нет связи — сотрудники не сохранены', 'error', 5000);
   }
   saveLocalUsers();
+  return ok;
+}
+
+// Однократный переезд: старый список /users с паролями открытым текстом
+// превращается в аккаунты Firebase и /staff, после чего /users удаляется.
+async function migrateLegacyUsers(){
+  try{
+    const res = await fetch(`${FIREBASE_DB_URL}/users.json?_=${Date.now()}`, { cache:'no-store' });
+    if(!res.ok) return;
+    const legacy = asList(await res.json()).filter(u => u && u.login);
+    if(!legacy.length) return;
+    const known = new Set(USERS.map(u => u.login));
+    legacy.forEach(u => { if(!known.has(u.login)) USERS.push({ id: u.login, login: u.login, name: u.name, departments: asList(u.departments), password: u.password }); });
+    if(await pushUsersToCloud()){
+      await fetch(`${FIREBASE_DB_URL}/users.json`, { method:'DELETE' });
+      showToast(`✅ Сотрудники переведены на защищённый вход: ${legacy.length}`, 'success', 4000);
+    }
+  }catch(e){ console.error('[Я прикрою] Переезд сотрудников:', e.message); }
 }
 
 let catalogSyncing = false;
@@ -2120,16 +2240,47 @@ function renderLock(){
   lockOverlay.style.display = 'flex';
 }
 
-async function findUserByCredentials(login, password){
-  // Администратор задан в коде — проверяем его первым
-  if(login === ROOT_ADMIN.login && (await sha256Hex(password)) === ROOT_ADMIN.passwordHash){
-    return { login: ROOT_ADMIN.login, name: ROOT_ADMIN.name, role: 'admin', departments: DEPARTMENTS.map(d => d.id) };
+async function loginAdmin(login, password){
+  const c = await authCreds(login, password);
+  let j;
+  try{ j = await fbSignIn(c.email, c.password); }
+  catch(e){
+    if(/OPERATION_NOT_ALLOWED/.test(e.code)) throw e;
+    j = await idtk('signUp', { email: c.email, password: c.password });   // первый вход админа — создать аккаунт
   }
-  const found = USERS.find(u => u.login === login && u.password === password);
-  if(found){
-    return { login: found.login, name: found.name, role: 'staff', departments: found.departments || [] };
+  setAuth(sessionFrom(j, ROOT_ADMIN.login));
+  const isAdmin = await (await fetch(`${FIREBASE_DB_URL}/admins/${j.localId}.json`)).json().catch(() => null);
+  if(isAdmin !== true){
+    const r = await fetch(`${FIREBASE_DB_URL}/admins/${j.localId}.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:'true' });
+    if(!r.ok){ setAuth(null); throw Object.assign(new Error('admin'), { code:'NOT_ADMIN' }); }
   }
-  return null;
+  await fetch(`${FIREBASE_DB_URL}/allowed/${j.localId}.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ admin:true }) });
+  return { login: ROOT_ADMIN.login, name: ROOT_ADMIN.name, role: 'admin', departments: DEPARTMENTS.map(d => d.id) };
+}
+
+async function loginStaff(login, password){
+  login = login.toLowerCase();
+  const c = await authCreds(login, password);
+  let j = null;
+  try{ j = await fbSignIn(c.email, c.password); }
+  catch(e){
+    if(/OPERATION_NOT_ALLOWED/.test(e.code)) throw e;
+    if(!/INVALID|EMAIL_NOT_FOUND|INVALID_PASSWORD|USER_DISABLED/.test(e.code)) throw e;
+    // Сотрудник из старого списка (до переезда): проверяем по старым данным и создаём аккаунт.
+    const legacyRes = await fetch(`${FIREBASE_DB_URL}/users.json?_=${Date.now()}`, { cache:'no-store' }).catch(() => null);
+    const legacy = legacyRes && legacyRes.ok ? asList(await legacyRes.json()) : [];
+    const old = legacy.find(u => u && u.login === login && u.password === password);
+    if(!old) return null;
+    j = await idtk('signUp', { email: c.email, password: c.password });
+    setAuth(sessionFrom(j, login));
+    await fetch(`${FIREBASE_DB_URL}/staff/${staffKey(login)}.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ login, name: old.name, departments: asList(old.departments), uid: j.localId }) });
+    await fetch(`${FIREBASE_DB_URL}/allowed/${j.localId}.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ login }) });
+  }
+  setAuth(sessionFrom(j, login));
+  const res = await fetch(`${FIREBASE_DB_URL}/staff/${staffKey(login)}.json?_=${Date.now()}`, { cache:'no-store' });
+  const st = res.ok ? await res.json() : null;
+  if(!st || st.uid !== j.localId){ setAuth(null); return null; }   // удалён или пароль сменили
+  return { login, name: st.name || login, role: 'staff', departments: asList(st.departments) };
 }
 
 async function attemptLogin(){
@@ -2141,20 +2292,32 @@ async function attemptLogin(){
     lockError.textContent = 'Введите логин и пароль';
     return;
   }
-
-  // Если приложение только открылось и список сотрудников из облака ещё
-  // не подгрузился — даём секунду на подгрузку перед проверкой, иначе
-  // сотрудник, созданный на другом устройстве, может не найтись сразу.
-  if(CLOUD_ENABLED && USERS.length === 0){
-    await pullUsersFromCloud();
+  const btn = document.getElementById('loginSubmitBtn');
+  btn.disabled = true; btn.textContent = 'Вхожу...';
+  let user = null;
+  try{
+    if(login === ROOT_ADMIN.login){
+      if((await sha256Hex(password)) !== ROOT_ADMIN.passwordHash){ lockError.textContent = 'Неверный логин или пароль'; return; }
+      user = await loginAdmin(login, password);
+    } else {
+      user = await loginStaff(login, password);
+    }
+  }catch(e){
+    console.error('[Я прикрою] Вход:', e.code || e.message);
+    lockError.textContent = /OPERATION_NOT_ALLOWED/.test(e.code || '') ? 'В Firebase не включён вход по почте и паролю'
+      : /TOO_MANY/.test(e.code || '') ? 'Слишком много попыток — подождите пару минут'
+      : e.code === 'NOT_ADMIN' ? 'Не удалось подтвердить права администратора'
+      : 'Нет связи — для входа нужен интернет';
+    return;
+  }finally{
+    btn.disabled = false; btn.textContent = 'Войти';
   }
-
-  const user = await findUserByCredentials(login, password);
   if(!user){
     lockError.textContent = 'Неверный логин или пароль';
     return;
   }
   if(user.role === 'staff' && user.departments.length === 0){
+    setAuth(null);
     lockError.textContent = 'Вам пока не назначен ни один отдел — обратитесь к администратору';
     return;
   }
@@ -2163,6 +2326,7 @@ async function attemptLogin(){
   localStorage.setItem(SESSION_USER_KEY, JSON.stringify(user));
   lockOverlay.style.display = 'none';
   enterApp();
+  pullUsersFromCloud().then(() => { if(user.role === 'admin') migrateLegacyUsers(); });
 }
 
 document.getElementById('loginSubmitBtn').onclick = attemptLogin;
@@ -2172,6 +2336,7 @@ document.getElementById('passwordInput').addEventListener('keydown', (e) => {
 
 document.getElementById('lockBtn').onclick = () => {
   localStorage.removeItem(SESSION_USER_KEY);
+  setAuth(null);
   currentUser = null;
   currentDept = null;
   if(cloudPollTimer) clearInterval(cloudPollTimer);
@@ -3076,7 +3241,7 @@ function renderAdminUserList(){
         <div class="admin-user-avatar">${escapeHtml((u.name || '?').slice(0,1).toUpperCase())}</div>
         <div class="admin-user-info">
           <div class="admin-user-name">${escapeHtml(u.name)}</div>
-          <div class="admin-user-meta">логин: ${escapeHtml(u.login)} · пароль: ${escapeHtml(u.password)}</div>
+          <div class="admin-user-meta">логин: ${escapeHtml(u.login)} · пароль скрыт</div>
           <div class="admin-user-depts">${deptTags}</div>
         </div>
         <div class="admin-user-actions">
@@ -3284,7 +3449,8 @@ function openUserEditModal(user){
   document.getElementById('userEditModalTitle').textContent = user ? 'Изменить сотрудника' : 'Новый сотрудник';
   document.getElementById('f_user_name').value = user ? user.name : '';
   document.getElementById('f_user_login').value = user ? user.login : '';
-  document.getElementById('f_user_password').value = user ? user.password : '';
+  document.getElementById('f_user_password').value = '';
+  document.getElementById('f_user_password').placeholder = user ? 'Оставьте пустым, чтобы не менять' : 'Пароль для входа';
   renderDeptCheckboxes(user ? (user.departments || []) : []);
   document.getElementById('userEditModalOverlay').classList.add('show');
 }
@@ -3303,8 +3469,9 @@ document.getElementById('saveUserBtn').onclick = async () => {
   const password = document.getElementById('f_user_password').value.trim();
   const departments = [...document.querySelectorAll('#deptCheckboxList input:checked')].map(el => el.value);
 
-  if(!name || !login || !password){
-    alert('Заполните имя, логин и пароль');
+  const editing = editingUserId ? USERS.find(u => u.id === editingUserId) : null;
+  if(!name || !login || (!password && (!editing || editing.login !== login))){
+    alert(editing ? 'Заполните имя и логин. При смене логина нужен и новый пароль.' : 'Заполните имя, логин и пароль');
     return;
   }
   if(login === ROOT_ADMIN.login){
@@ -3321,27 +3488,49 @@ document.getElementById('saveUserBtn').onclick = async () => {
   saveBtn.disabled = true;
   saveBtn.textContent = 'Сохраняю...';
 
-  if(editingUserId){
-    const u = USERS.find(u => u.id === editingUserId);
-    u.name = name; u.login = login; u.password = password; u.departments = departments;
+  if(editing){
+    editing.name = name; editing.login = login; editing.departments = departments;
+    if(password){ editing.password = password; editing.uid = ''; }   // новый пароль — новый аккаунт, старый теряет доступ
   } else {
-    USERS.push({
-      id: 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
-      name, login, password, departments
-    });
+    USERS.push({ id: login, name, login, password, departments });
   }
 
-  await pushUsersToCloud();
+  const saved = await pushUsersToCloud();
 
   saveBtn.disabled = false;
   saveBtn.textContent = 'Сохранить сотрудника';
 
   document.getElementById('userEditModalOverlay').classList.remove('show');
   renderAdminUserList();
-  if(fromRequestId && !editingUserId){
+  if(fromRequestId && !editingUserId && saved){
     await finishRequestWithCredentials(fromRequestId, login, password);
   }
   fromRequestId = null;
+};
+
+/* ---------------- КЛЮЧ ДЛЯ НАПОМИНАНИЙ (бот GitHub) ---------------- */
+document.getElementById('makeBotBtn').onclick = async () => {
+  const btn = document.getElementById('makeBotBtn');
+  btn.disabled = true; btn.textContent = 'Создаю...';
+  try{
+    const rnd = n => [...crypto.getRandomValues(new Uint8Array(n))].map(b => b.toString(16).padStart(2, '0')).join('');
+    const email = `bot.${rnd(4)}@${AUTH_DOMAIN}`, password = rnd(20);
+    const uid = await fbEnsureAccount(email, password);
+    const r1 = await fetch(`${FIREBASE_DB_URL}/admins/${uid}.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:'true' });
+    const r2 = await fetch(`${FIREBASE_DB_URL}/allowed/${uid}.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ bot:true }) });
+    if(!r1.ok || !r2.ok) throw new Error('нет прав');
+    document.getElementById('botCred').value = `${email} ${password}`;
+    document.getElementById('botBox').hidden = false;
+    showToast('✅ Ключ создан — вставьте его в GitHub', 'success', 4000);
+  }catch(e){
+    showToast('❌ Не удалось создать ключ: ' + (e.code || e.message), 'error', 5000);
+  }
+  btn.disabled = false; btn.textContent = 'Создать ключ для GitHub';
+};
+document.getElementById('copyBotBtn').onclick = async () => {
+  const t = document.getElementById('botCred');
+  try{ await navigator.clipboard.writeText(t.value); showToast('Скопировано', 'success', 1500); }
+  catch(e){ t.select(); document.execCommand('copy'); showToast('Скопировано', 'success', 1500); }
 };
 
 /* ---------------- ЗАПРОСЫ ДОСТУПА И ЧАТ ПОДДЕРЖКИ ----------------
@@ -4014,8 +4203,7 @@ async function init(){
   // можно случайно затереть общую базу пустыми локальными данными.
   if(CLOUD_ENABLED){
     await pullCatalogFromCloud();
-    await pullFromCloud();
-    await pullUsersFromCloud();
+    if(AUTH){ await pullFromCloud(); await pullUsersFromCloud(); }
   }
   DEPARTMENTS.forEach(d => ensureDeptShape(d.id));
   saveLocalDB(); // только локальный кэш, не отправляем лишний раз в облако при простом старте
@@ -4027,12 +4215,16 @@ async function init(){
       // Сессия уже была подтверждена паролем при входе — здесь просто
       // проверяем, что пользователь не удалён и подтягиваем его актуальные
       // отделы (админ мог их поменять с другого устройства).
-      if(savedUser.role === 'admin' && savedUser.login === ROOT_ADMIN.login){
+      if(!AUTH || AUTH.login !== savedUser.login){
+        // старая сессия без входа через Firebase — нужно войти заново
+      } else if(savedUser.role === 'admin' && savedUser.login === ROOT_ADMIN.login){
         currentUser = { login: ROOT_ADMIN.login, name: ROOT_ADMIN.name, role: 'admin', departments: DEPARTMENTS.map(d => d.id) };
       } else {
         const stillExists = USERS.find(u => u.login === savedUser.login);
         if(stillExists){
           currentUser = { login: stillExists.login, name: stillExists.name, role: 'staff', departments: stillExists.departments || [] };
+        } else if(!navigator.onLine){
+          currentUser = savedUser;   // без связи пускаем по сохранённой сессии
         }
       }
       if(currentUser){

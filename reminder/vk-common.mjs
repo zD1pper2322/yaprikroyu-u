@@ -2,6 +2,33 @@
 export const FIREBASE_DB_URL = 'https://ya-prikroyu-default-rtdb.europe-west1.firebasedatabase.app';
 const VK_V = '5.199';
 
+// Вход бота в базу. Секрет FIREBASE_BOT = «почта пароль» (создаётся в админке
+// приложения кнопкой «Создать ключ для GitHub»). Пока секрета нет, запросы
+// идут без входа — это работает, только пока база открыта.
+const FIREBASE_API_KEY = 'AIzaSyACN9IXzwhSzoxBWvi4WTccFn_AFfRHgqE';
+let botToken = null;
+async function botSignIn() {
+  const cred = (process.env.FIREBASE_BOT || '').trim();
+  if (!cred) return null;
+  const [email, password] = cred.split(/\s+/);
+  const res = await rawFetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, returnSecureToken: true }),
+  });
+  const j = await res.json();
+  if (!res.ok) throw new Error(`Вход бота в базу не удался (${j?.error?.message || res.status}). Создайте новый ключ в админке и обновите секрет FIREBASE_BOT.`);
+  return j.idToken;
+}
+const rawFetch = globalThis.fetch.bind(globalThis);
+globalThis.fetch = async (url, opt) => {
+  url = String(url);
+  if (url.startsWith('https://ya-prikroyu-default-rtdb.')) {
+    if (botToken === null) botToken = (await botSignIn()) || '';
+    if (botToken) url += (url.includes('?') ? '&' : '?') + 'auth=' + encodeURIComponent(botToken);
+  }
+  return rawFetch(url, opt);
+};
+
 export async function vk(method, params) {
   const token = process.env.VK_TOKEN;
   if (!token) throw new Error('Нет секрета VK_TOKEN: добавьте ключ сообщества в Settings → Secrets and variables → Actions.');

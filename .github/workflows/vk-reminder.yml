@@ -17,4 +17,11 @@ jobs:
       - name: Отправить сводку
         env:
           VK_TOKEN: ${{ secrets.VK_TOKEN }}
+          FIREBASE_BOT: ${{ secrets.FIREBASE_BOT }}
         run: node reminder/vk-reminder.mjs
+      - name: Резервная копия и очистка
+        if: always()
+        env:
+          VK_TOKEN: ${{ secrets.VK_TOKEN }}
+          FIREBASE_BOT: ${{ secrets.FIREBASE_BOT }}
+        run: node reminder/backup.mjs

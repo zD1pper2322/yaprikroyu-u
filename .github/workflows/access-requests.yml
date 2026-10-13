@@ -21,4 +21,5 @@ jobs:
       - name: Отправить новые запросы
         env:
           VK_TOKEN: ${{ secrets.VK_TOKEN }}
+          FIREBASE_BOT: ${{ secrets.FIREBASE_BOT }}
         run: node reminder/access-requests.mjs
