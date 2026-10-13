@@ -199,7 +199,7 @@ const Engine = {
       if(Math.abs(this.camTarget.x - this.cam.x) < 1 && Math.abs(this.camTarget.y - this.cam.y) < 1) this.camTarget = null;
       this.clamp();
     }
-    if(this.st){ this.stepAnimals(dt); this.draw(t / 1000); }
+    if(this.st){ this.stepAnimals(dt); Life.step(this.st, dt); this.draw(t / 1000); }
     requestAnimationFrame(tt => this.frame(tt));
   },
   draw(time){
@@ -252,7 +252,9 @@ const Engine = {
       c.save(); c.translate(q.x, q.y); c.scale(k, k); Art.boat(c, 0, 0, time, bp.docked ? st.boat.crates : []); c.restore();
     }
     Art.fenceLine(c, 0, 0, W, 0); Art.fenceLine(c, 0, 0, 0, H, [5.8 * T, 8.2 * T]);
-    Art.drawGroundBits(c, st, view);   // кустики травы, цветы, камни — на свободной земле
+    Life.lights.length = 0;
+    Art.drawGroundBits(c, st, view, time);
+    Life.lamps(c, time, view);   // кустики травы, цветы, камни — на свободной земле
     // 3) вертикальные объекты по глубине (дальше — раньше)
     const items = [], overlays = [];
     let curKey = null;
@@ -332,6 +334,7 @@ const Engine = {
       add(tp.x + tp.y, () => { const q = Art.P(tp.x, tp.y); Art.truck(c, q.x, q.y - 8, tp.flip, tp.cargo); }, 'truck');
       if(!this.visit && truckState() === 'back'){ const q = Art.P(tp.x, tp.y); ovl(() => Art.bubble(c, q.x, q.y - 70, '🪙', { r: 17 }), 'truck'); }
     }
+    Life.addItems((d, fn) => add(d, fn, null), () => c, time, st);   // фермер, собака, покупатели
     items.sort((a2, b2) => a2.depth - b2.depth).forEach(it => it.fn());
     const ovN = overlays.length;
     // 4) передний забор
@@ -340,7 +343,8 @@ const Engine = {
     Art.cloudShadows(c, time);
     Art.butterflies(c, time, view);
     Art.birds(c, time, view);
-    c.save(); c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0); Art.lighting(c, this.W, this.H); c.restore();
+    c.save(); c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0); Art.lighting(c, this.W, this.H); Life.wind(c, this.W, this.H, this.dt, Life.sky().n); c.restore();
+    Life.glow(c, time, view, Life.sky().n);
     if(this.placing) this.drawGhost(c, time);
     const bob = Math.sin(time * 3) * 3;
     c.save(); c.translate(0, bob); overlays.forEach(f => f.fn()); c.restore();

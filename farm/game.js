@@ -624,6 +624,7 @@ function openSettings(){
   showSheet('⚙️ Настройки', `<label class="check"><input type="checkbox" id="snd" ${S.sound ? 'checked' : ''}> Звуки</label>
     <label class="check"><input type="checkbox" id="mus" ${S.music ? 'checked' : ''}> Музыка</label>
     <label class="check"><input type="checkbox" id="vib" ${S.vibro ? 'checked' : ''}> Вибрация</label>
+    <label class="check"><input type="checkbox" id="dn" ${S.daynight !== false ? 'checked' : ''}> День и ночь по часам</label>
     <label class="check"><input type="checkbox" id="ntf" ${S.notify && nState === 'granted' ? 'checked' : ''} ${nState === 'none' || nState === 'denied' ? 'disabled' : ''}> Уведомления, когда всё готово</label>
     ${nState === 'denied' ? '<p class="hint">Уведомления запрещены в браузере — разрешите их в настройках сайта.</p>' : nState === 'none' ? '<p class="hint">Этот браузер не умеет показывать уведомления. На телефоне добавьте игру на главный экран.</p>' : '<p class="hint">Придут, пока игра открыта или свёрнута.</p>'}
     ${S.admin ? '<button class="btn primary" id="adminBtn">🛠 Панель админа</button>' : ''}
@@ -632,6 +633,7 @@ function openSettings(){
     sh.querySelector('.me-box b').textContent = S.nick;
     sh.querySelector('#snd').onchange = e => { S.sound = e.target.checked; save(); };
     sh.querySelector('#mus').onchange = e => { S.music = e.target.checked; save(); Music.sync(); };
+    sh.querySelector('#dn').onchange = e => { S.daynight = e.target.checked; save(); };
     sh.querySelector('#vib').onchange = e => { S.vibro = e.target.checked; save(); buzz(30); };
     sh.querySelector('#ntf').onchange = async e => {
       if(e.target.checked){ const r = await Notification.requestPermission(); S.notify = r === 'granted'; e.target.checked = S.notify; if(S.notify) toast('🔔 Сообщу, когда урожай и заводы будут готовы'); }
