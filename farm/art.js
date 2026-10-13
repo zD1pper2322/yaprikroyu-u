@@ -182,6 +182,11 @@ const Art = {
       }
       ctx.globalAlpha = 1;
     }
+    // мягкая тень у земли (ambient occlusion) — дом «стоит», а не висит
+    for(let k = 0; k < 6; k++){
+      ctx.strokeStyle = `rgba(30,20,10,${0.22 * (1 - k / 6)})`; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(D.x, D.y - k * 2.5 - 1); ctx.lineTo(C.x, C.y - k * 2.5 - 1); ctx.lineTo(B.x, B.y - k * 2.5 - 1); ctx.stroke();
+    }
     // светлый угол
     ctx.strokeStyle = sh(wall, 1.18); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(C.x, C.y - fh); ctx.lineTo(C.x, C.y - h + 2); ctx.stroke();
     if(opts.flat){

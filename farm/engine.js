@@ -245,12 +245,14 @@ const Engine = {
     Art.drawTrees(c, Art.scenery.back, time, view);
     if(Art.inView(Art.P(9.8 * T, -3.6 * T), view, 260)) Art.farmhouse(c, time);
     if(Art.inView(Art.P(2 * T, -2 * T), view, 200)) Art.silo(c);
+    Art.ducks(c, time, view);
     const bp = Boat.pos(st);
     if(bp){
       const q = Art.P(bp.x, bp.y), k = bp.far ? 0.55 : 1;
       c.save(); c.translate(q.x, q.y); c.scale(k, k); Art.boat(c, 0, 0, time, bp.docked ? st.boat.crates : []); c.restore();
     }
     Art.fenceLine(c, 0, 0, W, 0); Art.fenceLine(c, 0, 0, 0, H, [5.8 * T, 8.2 * T]);
+    Art.drawGroundBits(c, st, view);   // кустики травы, цветы, камни — на свободной земле
     // 3) вертикальные объекты по глубине (дальше — раньше)
     const items = [], overlays = [];
     let curKey = null;
@@ -335,6 +337,10 @@ const Engine = {
     // 4) передний забор
     Art.fenceLine(c, 0, H, W, H); Art.fenceLine(c, W, 0, W, H);
     Art.drawTrees(c, Art.scenery.front, time, view);
+    Art.cloudShadows(c, time);
+    Art.butterflies(c, time, view);
+    Art.birds(c, time, view);
+    c.save(); c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0); Art.lighting(c, this.W, this.H); c.restore();
     if(this.placing) this.drawGhost(c, time);
     const bob = Math.sin(time * 3) * 3;
     c.save(); c.translate(0, bob); overlays.forEach(f => f.fn()); c.restore();
