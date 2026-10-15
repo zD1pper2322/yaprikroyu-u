@@ -1,7 +1,7 @@
 // 3D-модели заводов «Хуторка»: каждый — свой механизм на каменной площадке 3×3.
 import * as THREE from 'three';
 import { MODELS, H } from './models.js';
-const T = THREE;
+const T = H.T;
 const { g, add, rbox, cyl, sph, cone, mat, shade, tex, planksTex, shinglesTex, bricksTex, stoneTex, house, window3, door3, awning3, pad } = H;
 
 const stripesTex = (col, n = 8) => tex('stripes' + col + n, 128, 32, (c, w, h) => { for(let i = 0; i < n; i++){ c.fillStyle = i % 2 ? '#fffaf0' : col; c.fillRect(i * w / n, 0, w / n + 1, h); } });

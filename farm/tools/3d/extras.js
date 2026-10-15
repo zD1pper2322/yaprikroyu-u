@@ -1,7 +1,7 @@
 // 3D: люди, собака, лодка, сундук, декор, забор, кормушка.
 import * as THREE from 'three';
 import { MODELS, H } from './models.js';
-const T = THREE;
+const T = H.T;
 const { g, add, rbox, cyl, sph, cone, mat, shade, tex, planksTex, shinglesTex, stoneTex } = H;
 const wood = (c = '#a86d34') => mat(c, { map: planksTex(c, 1, 1) });
 

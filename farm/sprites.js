@@ -2,7 +2,7 @@
 // и отрендерены с мягким светом и тенью (папка sprites). Пока картинка грузится — рисуется старый вариант.
 'use strict';
 
-const SPRITES_V = 5;
+const SPRITES_V = 6;
 const Sprites = {
   man: null, imgs: {},
   init(){

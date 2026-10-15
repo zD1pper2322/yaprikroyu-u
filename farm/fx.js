@@ -45,9 +45,9 @@ Object.assign(Art, {
     };
     // рассыпаем по карте: позиции детерминированные
     const r = rnd(4242), pts = [];
-    for(let i = 0; i < 650; i++){
+    for(let i = 0; i < 320; i++){
       const x = r() * MAP_W, y = r() * MAP_H, k = r();
-      const kind = k < 0.7 ? 'tuft' : k < 0.88 ? 'flower' : k < 0.97 ? 'rock' : 'shroom';
+      const kind = k < 0.6 ? 'tuft' : k < 0.92 ? 'flower' : k < 0.98 ? 'rock' : 'shroom';
       pts.push({ x, y, kind, v: Math.floor(r() * 4) });
     }
     this.groundBits = pts;

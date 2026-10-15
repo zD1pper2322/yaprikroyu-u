@@ -86,7 +86,8 @@ window.renderSprite = async function(name, args = {}){
   // уменьшаем в два шага — мягкие края без ступенек
   const mid = document.createElement('canvas'); mid.width = Math.round((x1 - x0 + 1) / 2); mid.height = Math.round((y1 - y0 + 1) / 2);
   const mc = mid.getContext('2d'); mc.imageSmoothingQuality = 'high'; mc.drawImage(tmp, x0, y0, x1 - x0 + 1, y1 - y0 + 1, 0, 0, mid.width, mid.height);
-  oc.drawImage(mid, 0, 0, mid.width, mid.height, 0, 0, w, h);
+  oc.filter = 'saturate(1.25) brightness(1.05) contrast(1.05)'; // сочные цвета, как в Hay Day
+  oc.drawImage(mid, 0, 0, mid.width, mid.height, 0, 0, w, h); oc.filter = 'none';
   scene.traverse(o => { if(o.geometry) o.geometry.dispose(); if(o.material) [].concat(o.material).forEach(m => m.dispose()); });
   // особые точки (труба для дыма и т.п.) — смещение от якоря в пикселях игры
   const pts = {};

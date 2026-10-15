@@ -21,20 +21,21 @@ const Art = {
       const r = rnd(seed);
       const wrap = fn => { for(const ox of [-S, 0, S]) for(const oy of [-S, 0, S]) fn(ox, oy); };
       const blob = (x, y, rad, col, a) => wrap((ox, oy) => { const g = c.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, rad); g.addColorStop(0, col.replace('A', a)); g.addColorStop(1, col.replace('A', 0)); c.fillStyle = g; c.beginPath(); c.arc(x + ox, y + oy, rad, 0, 7); c.fill(); });
-      for(let i = 0; i < 26; i++) blob(r() * S, r() * S, 70 + r() * 110, dark, 0.32);
+      for(let i = 0; i < 18; i++) blob(r() * S, r() * S, 90 + r() * 120, dark, 0.22);
       for(let i = 0; i < 26; i++) blob(r() * S, r() * S, 60 + r() * 100, light, 0.34);
       // кустистые мазки: пучки из нескольких травинок
-      for(let i = 0; i < 1300; i++){
+      for(let i = 0; i < 520; i++){
         const x = r() * S, y = r() * S, n = 3 + Math.floor(r() * 3), col = blades[Math.floor(r() * blades.length)];
-        c.strokeStyle = col; c.lineWidth = 1.6 + r() * 0.8; c.lineCap = 'round';
+        c.strokeStyle = col; c.lineWidth = 2 + r() * 0.8; c.globalAlpha = 0.55; c.lineCap = 'round';
         for(let k = 0; k < n; k++){ const dx = (k - n / 2) * 1.6, h = 4 + r() * 6; wrap((ox, oy) => { if(x + ox < -12 || x + ox > S + 12 || y + oy < -12 || y + oy > S + 12) return; c.beginPath(); c.moveTo(x + dx + ox, y + oy); c.quadraticCurveTo(x + dx + ox + (r() - 0.5) * 2, y + oy - h * 0.6, x + dx * 1.6 + ox + (r() - 0.5) * 3, y + oy - h); c.stroke(); }); }
       }
+      c.globalAlpha = 1;
       // солнечные блики на траве
-      for(let i = 0; i < 160; i++){ const x = r() * S, y = r() * S; c.fillStyle = 'rgba(232,248,120,0.3)'; c.beginPath(); c.ellipse(x, y, 3 + r() * 4, 1.5 + r() * 2, r() * 3, 0, 7); c.fill(); }
+      for(let i = 0; i < 70; i++){ const x = r() * S, y = r() * S; c.fillStyle = 'rgba(232,248,120,0.3)'; c.beginPath(); c.ellipse(x, y, 3 + r() * 4, 1.5 + r() * 2, r() * 3, 0, 7); c.fill(); }
       if(flowers) for(let i = 0; i < 14; i++){ c.fillStyle = ['#ffffff', '#ffe066', '#ff9ec4', '#b8a6ff'][i % 4]; const x = 10 + r() * (S - 20), y = 10 + r() * (S - 20); for(let k = 0; k < 5; k++){ c.beginPath(); c.arc(x + Math.cos(k * 1.256) * 1.8, y + Math.sin(k * 1.256) * 1.8, 1.4, 0, 7); c.fill(); } c.fillStyle = '#ffcc33'; c.beginPath(); c.arc(x, y, 1, 0, 7); c.fill(); }
       const pat = ctx.createPattern(cv, 'repeat'); pat.setTransform(new DOMMatrix().scale(1 / Q)); return pat;
     };
-    this.grassPattern = paintGrass('#8fc62c', 'rgba(188,226,62,A)', 'rgba(66,118,14,A)', ['#73a91e', '#649a18', '#a2d03a', '#b6de48', '#86ba26'], 7, true);
+    this.grassPattern = paintGrass('#8fd034', 'rgba(196,236,80,A)', 'rgba(70,128,18,A)', ['#7fbc28', '#74b024', '#a6da44', '#b8e652'], 7, true);
     // трава за пределами хутора — темнее и гуще
     this.outerPattern = paintGrass('#6fa424', 'rgba(150,196,50,A)', 'rgba(46,90,12,A)', ['#5a8e1a', '#4c7f14', '#7fb22e', '#689c20'], 5, false);
     // Земля грядок: рыхлая, тёплая.

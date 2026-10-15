@@ -1,7 +1,9 @@
 // 3D-модели «Хуторка». 1 единица = 1 клетка; x и z — как x и y на карте игры, y — вверх.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from '../tjs/examples/jsm/geometries/RoundedBoxGeometry.js';
-const T = THREE;
+// Все «коробки» чуть скруглены по рёбрам — мягкие игрушечные формы, как в Hay Day.
+class SoftBox extends RoundedBoxGeometry { constructor(w = 1, h = 1, d = 1){ const m = Math.min(w, h, d); super(w, h, d, 2, Math.max(0.0005, Math.min(m * 0.22, 0.045, m / 2 - 0.0005))); } }
+const T = { ...THREE, BoxGeometry: SoftBox };
 export const MODELS = {};
 
 /* ---------- материалы и текстуры ---------- */
@@ -19,10 +21,10 @@ function planksTex(col, rx, ry){ return tex('pl' + col, 128, 128, (c, w, h) => {
 function shinglesTex(col, rx, ry){ return tex('sh' + col, 128, 128, (c, w, h) => { c.fillStyle = shade(col, 0.85); c.fillRect(0, 0, w, h); for(let r = 0; r < 6; r++) for(let i = -1; i < 6; i++){ const x = i * 26 + (r % 2) * 13, y = r * 22; c.fillStyle = shade(col, 0.92 + ((i + r) % 3) * 0.06); c.beginPath(); c.moveTo(x, y); c.lineTo(x + 26, y); c.lineTo(x + 26, y + 16); c.quadraticCurveTo(x + 13, y + 26, x, y + 16); c.closePath(); c.fill(); c.strokeStyle = shade(col, 0.7); c.lineWidth = 1.5; c.stroke(); } }, rx, ry); }
 function bricksTex(col, rx, ry){ return tex('br' + col, 128, 128, (c, w, h) => { c.fillStyle = '#d9cbb5'; c.fillRect(0, 0, w, h); for(let r = 0; r < 8; r++) for(let i = -1; i < 5; i++){ c.fillStyle = shade(col, 0.88 + ((i * 7 + r * 3) % 5) * 0.05); c.fillRect(i * 32 + (r % 2) * 16 + 1.5, r * 16 + 1.5, 29, 13); } }, rx, ry); }
 function stoneTex(rx, ry){ return tex('st', 128, 128, (c, w, h) => { c.fillStyle = '#b8b0a2'; c.fillRect(0, 0, w, h); for(let r = 0; r < 4; r++) for(let i = 0; i < 4; i++){ c.fillStyle = shade('#cfc7b8', 0.9 + ((i + r * 2) % 4) * 0.05); c.beginPath(); c.roundRect(i * 32 + (r % 2) * 10 + 2, r * 32 + 2, 28, 28, 6); c.fill(); } }, rx, ry); }
-function soilTex(){ return tex('soil', 128, 128, (c, w, h) => { c.fillStyle = '#8a5428'; c.fillRect(0, 0, w, h); for(let i = 0; i < 400; i++){ c.fillStyle = ['#7a4520', '#9c6534', '#6b3c1a', '#a8723f'][i % 4]; c.beginPath(); c.arc((i * 73) % w, (i * 151) % h, 1 + (i % 3), 0, 7); c.fill(); } }); }
+function soilTex(){ return tex('soil2', 128, 128, (c, w, h) => { c.fillStyle = '#ffffff'; c.fillRect(0, 0, w, h); for(let i = 0; i < 260; i++){ c.fillStyle = ['#ecdccb', '#f6eee4', '#e2cdb6', '#fff8ee'][i % 4]; c.beginPath(); c.arc((i * 73) % w, (i * 151) % h, 1 + (i % 3), 0, 7); c.fill(); } }); }
 const MAT = new Map();
 // Лёгкое «зерно» на всех поверхностях — как нарисованные текстуры, а не пластик.
-function grainTex(){ return tex('grain', 128, 128, (c, w, h) => { const im = c.createImageData(w, h); for(let i = 0; i < w * h; i++){ const v = 222 + Math.floor(Math.random() * 34); im.data[i * 4] = v; im.data[i * 4 + 1] = v; im.data[i * 4 + 2] = v; im.data[i * 4 + 3] = 255; } c.putImageData(im, 0, 0); c.globalAlpha = 0.25; for(let i = 0; i < 40; i++){ c.fillStyle = Math.random() < 0.5 ? '#ffffff' : '#cfcfcf'; c.beginPath(); c.arc(Math.random() * w, Math.random() * h, 4 + Math.random() * 10, 0, 7); c.fill(); } }, 2, 2); }
+function grainTex(){ return tex('grain', 128, 128, (c, w, h) => { const im = c.createImageData(w, h); for(let i = 0; i < w * h; i++){ const v = 238 + Math.floor(Math.random() * 18); im.data[i * 4] = v; im.data[i * 4 + 1] = v; im.data[i * 4 + 2] = v; im.data[i * 4 + 3] = 255; } c.putImageData(im, 0, 0); c.globalAlpha = 0.12; for(let i = 0; i < 40; i++){ c.fillStyle = Math.random() < 0.5 ? '#ffffff' : '#cfcfcf'; c.beginPath(); c.arc(Math.random() * w, Math.random() * h, 4 + Math.random() * 10, 0, 7); c.fill(); } }, 2, 2); }
 function mat(col, o = {}){
   const k = col + JSON.stringify(o);
   if(MAT.has(k) && !o.map) return MAT.get(k);
@@ -106,21 +108,23 @@ function pad(p, w, d){ add(p, rbox(w - 0.16, 0.14, d - 0.16, 0.05), mat('#cfc6b4
 
 /* ================= грядки и урожай ================= */
 function bed(p){
-  add(p, rbox(1.84, 0.2, 1.84, 0.06), mat('#7a4520'), 1, 0.1, 1);
-  add(p, rbox(1.7, 0.06, 1.7, 0.03), mat('#9a6233', { map: soilTex() }), 1, 0.2, 1);
-  for(let i = 0; i < 4; i++) add(p, cyl(0.06, 0.06, 1.56, 12), mat('#8a5428', { map: soilTex() }), 1, 0.22, 0.32 + i * 0.45, 0, 0, Math.PI / 2, [1, 1, 0.7]);
+  // мягкая земляная грядка: тёплая светлая земля и пухлые бороздки
+  add(p, rbox(1.86, 0.16, 1.86, 0.08), mat('#7a4c28', { noGrain: true }), 1, 0.08, 1);
+  add(p, rbox(1.74, 0.06, 1.74, 0.03), mat('#94603a', { map: soilTex() }), 1, 0.17, 1);
+  for(let i = 0; i < 4; i++) add(p, new T.CapsuleGeometry(0.11, 1.4, 6, 16), mat('#9e6a40', { map: soilTex() }), 1, 0.2, 0.3 + i * 0.465, 0, 0, Math.PI / 2, [1, 1, 0.55]);
 }
-const CROP_PTS = []; for(let j = 0; j < 3; j++) for(let i = 0; i < 4; i++) CROP_PTS.push([0.33 + i * 0.45 + (j % 2) * 0.06, 0.38 + j * 0.62]);
+const CROP_PTS = []; for(let j = 0; j < 4; j++) for(let i = 0; i < 4; i++) CROP_PTS.push([0.3 + i * 0.465 + (j % 2) * 0.08, 0.3 + j * 0.465]);
 function sprout(p, x, z, y){ [-1, 1].forEach(s => add(p, sph(0.05, 10, 8), mat('#6cbf3a'), x + s * 0.04, y + 0.06, z, 0, 0, s * 0.6, [1, 0.45, 0.7])); add(p, cyl(0.01, 0.012, 0.08, 6), mat('#5aa830'), x, y + 0.03, z); }
 const CROPS3 = {
-  wheat(p, x, z, y, st){ const h = [0, 0.3, 0.5, 0.62][st], col = st === 3 ? '#e2b33c' : '#8ccf4a';
-    for(let k = 0; k < 4; k++){ const a = k * 1.57, dx = Math.cos(a) * 0.05, dz = Math.sin(a) * 0.05; add(p, cyl(0.012, 0.016, h, 6), mat(col), x + dx, y + h / 2, z + dz, dz * 2, 0, -dx * 2);
-      if(st >= 2) add(p, sph(0.04, 10, 8), mat(st === 3 ? '#f2c94c' : '#b6d45a'), x + dx * 1.6, y + h + 0.05, z + dz * 1.6, 0, 0, 0, [0.7, 1.9, 0.7]); } },
+  wheat(p, x, z, y, st){ const h = [0, 0.28, 0.45, 0.55][st], col = st === 3 ? '#e9b93e' : '#7cc63f';
+    for(let k = 0; k < 7; k++){ const a = k * 0.9, r = k ? 0.075 : 0, dx = Math.cos(a) * r, dz = Math.sin(a) * r, hh = h * (k ? 0.88 + (k % 3) * 0.06 : 1);
+      add(p, cyl(0.016, 0.022, hh, 6), mat(col), x + dx, y + hh / 2, z + dz, dz * 2.2, 0, -dx * 2.2);
+      if(st >= 2) add(p, sph(0.05, 12, 10), mat(st === 3 ? '#f7cf52' : '#a8d65a', { r: 0.6 }), x + dx * 1.9, y + hh + 0.05, z + dz * 1.9, dz * 2.2, 0, -dx * 2.2, [0.75, 1.9, 0.75]); } },
   corn(p, x, z, y, st){ const h = [0, 0.4, 0.7, 0.85][st]; add(p, cyl(0.025, 0.035, h, 8), mat('#5aa830'), x, y + h / 2, z);
     for(let k = 0; k < 3; k++){ const a = k * 2.1; add(p, sph(0.12, 10, 6), mat('#6cbf3a'), x + Math.cos(a) * 0.09, y + h * (0.35 + k * 0.2), z + Math.sin(a) * 0.09, 0, a, 0.9, [1, 0.12, 0.35]); }
     if(st === 3){ add(p, sph(0.06, 12, 10), mat('#f6c945'), x + 0.06, y + h * 0.55, z + 0.03, 0, 0, -0.3, [0.8, 1.8, 0.8]); add(p, sph(0.06, 10, 8), mat('#8bc34a'), x + 0.05, y + h * 0.5, z + 0.05, 0, 0, -0.3, [0.7, 1.6, 0.5]); } },
   carrot(p, x, z, y, st){ const k = [0, 0.5, 0.8, 1][st]; for(let i = 0; i < 4; i++){ const a = i * 1.57; add(p, sph(0.07, 8, 6), mat('#4caf3a'), x + Math.cos(a) * 0.04, y + 0.1 * k, z + Math.sin(a) * 0.04, Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5, [0.45 * k, 1.8 * k, 0.45 * k]); }
-    if(st === 3) add(p, cone(0.06, 0.12, 12), mat('#f08a24'), x, y + 0.02, z, Math.PI); },
+    if(st === 3) add(p, sph(0.065, 14, 10), mat('#f5891f', { r: 0.5 }), x, y + 0.04, z, 0, 0, 0, [1, 0.8, 1]); },
   cane(p, x, z, y, st){ const h = [0, 0.35, 0.6, 0.8][st]; [-0.04, 0.04].forEach(dx => { for(let s = 0; s < 4; s++) add(p, cyl(0.022, 0.022, h / 4 - 0.01, 8), mat(st === 3 ? '#a4d65e' : '#6fb53e'), x + dx, y + h / 8 + s * h / 4, z + dx * 0.5); }); add(p, sph(0.1, 8, 6), mat('#5aa830'), x, y + h, z, 0, 0, 0.6, [1, 0.15, 0.3]); },
   tomato(p, x, z, y, st){ const k = [0, 0.55, 0.85, 1][st]; add(p, sph(0.13 * k, 12, 10), mat('#3f9a32'), x, y + 0.13 * k, z); add(p, sph(0.09 * k, 12, 10), mat('#56b443'), x - 0.04, y + 0.2 * k, z + 0.03);
     if(st === 3) [[0.08, 0.1, 0.05], [-0.06, 0.08, 0.08], [0.02, 0.2, 0.09]].forEach(([dx, dy, dz]) => add(p, sph(0.05, 12, 10), mat('#e8402d', { r: 0.4 }), x + dx, y + dy, z + dz)); },
@@ -292,12 +296,12 @@ MODELS.chicken = { anchor: [0, 0], shadowOpacity: 0.3, build(){ const p = g(), W
 MODELS.cow = { anchor: [0, 0], shadowOpacity: 0.3, build(){ const p = g();
   const body = mat('#fbfaf6', { r: 0.85 }), spot = mat('#2b2522', { r: 0.85 });
   [[0.32, 0.13], [0.32, -0.13], [-0.3, 0.13], [-0.3, -0.13]].forEach(([x, z]) => { add(p, cyl(0.055, 0.05, 0.36, 10), body, x, 0.18, z); add(p, cyl(0.058, 0.058, 0.06, 10), mat('#3a2a1a'), x, 0.03, z); });
-  add(p, rbox(0.9, 0.45, 0.46, 0.18), body, 0, 0.55, 0);
+  add(p, new T.CapsuleGeometry(0.25, 0.42, 8, 20), body, 0, 0.55, 0, 0, 0, Math.PI / 2, [1.0, 1, 0.98]);
   [[0.15, 0.68, 0.2, 0.17], [-0.25, 0.55, 0.22, 0.15], [-0.05, 0.62, -0.22, 0.14], [0.3, 0.5, -0.2, 0.1]].forEach(([x, y, z, r]) => add(p, sph(r, 16, 12), spot, x, y, z, 0, 0, 0, [1, 0.9, 0.25]));
   add(p, sph(0.08, 12, 10), mat('#f4a6a6'), -0.05, 0.32, 0, 0, 0, 0, [1.2, 0.7, 1]);
   add(p, cyl(0.015, 0.015, 0.35, 6), body, -0.48, 0.5, 0, 0, 0, -0.35); add(p, sph(0.04, 8, 6), spot, -0.54, 0.34, 0);
   const h = g(); h.position.set(0.5, 0.72, 0); p.add(h);
-  add(h, rbox(0.26, 0.28, 0.28, 0.09), body, 0, 0, 0);
+  add(h, sph(0.17, 20, 16), body, 0, 0, 0, 0, 0, 0, [1, 1.05, 1]);
   add(h, rbox(0.14, 0.15, 0.24, 0.06), mat('#f2b6b0', { r: 0.6 }), 0.13, -0.07, 0);
   [-1, 1].forEach(s => { add(h, sph(0.018, 8, 6), mat('#9e5a55'), 0.205, -0.06, s * 0.05); add(h, sph(0.025, 10, 8), mat('#111', { r: 0.2 }), 0.12, 0.05, s * 0.1); add(h, sph(0.008, 6, 4), mat('#fff'), 0.135, 0.06, s * 0.11);
     add(h, cone(0.03, 0.12, 10), mat('#e8dcc0'), -0.02, 0.17, s * 0.11, s * 0.4); add(h, sph(0.06, 10, 8), body, -0.05, 0.08, s * 0.18, 0, 0, 0, [0.6, 0.35, 1]); });
@@ -335,4 +339,4 @@ MODELS.board = { anchor: [1, 1], build(){ const p = g();
   [[0.66, 1.1], [1.0, 1.15], [1.34, 1.08]].forEach(([x, y], i) => { add(p, new T.BoxGeometry(0.27, 0.36, 0.02), mat('#fffaf0'), x, y, 1.4, 0, 0, (i - 1) * 0.06); add(p, sph(0.025, 8, 6), mat('#e5533d'), x, y + 0.15, 1.42); });
   return p; } };
 
-export const H = { g, add, rbox, cyl, sph, cone, mat, shade, tex, planksTex, shinglesTex, bricksTex, stoneTex, house, window3, door3, awning3, pad };
+export const H = { T, g, add, rbox, cyl, sph, cone, mat, shade, tex, planksTex, shinglesTex, bricksTex, stoneTex, house, window3, door3, awning3, pad };
